@@ -4,17 +4,20 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"time"
 
 	"github.com/go-redis/redis/v8"
 )
 
 type RedisAdapter struct {
 	client *redis.Client
+	ttl    time.Duration
 }
 
-func NewRedisAdapter(opt *redis.Options) *RedisAdapter {
+func NewRedisAdapter(opt *redis.Options, ttl time.Duration) CacheAdapter {
 	return &RedisAdapter{
 		client: redis.NewClient(opt),
+		ttl:    ttl,
 	}
 }
 
@@ -40,6 +43,6 @@ func (ra *RedisAdapter) Set(key string, response *Response) error {
 	if err != nil {
 		return err
 	}
-	_, err = ra.client.Set(context.Background(), key, b, 0).Result()
+	_, err = ra.client.Set(context.Background(), key, b, ra.ttl).Result()
 	return err
 }

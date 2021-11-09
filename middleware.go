@@ -78,7 +78,8 @@ func CacheWithConfig(config CacheConfig) echo.MiddlewareFunc {
 		config.CacheDuration = DefaultCacheDuration
 	}
 	if config.Adapter == nil {
-		config.Adapter = NewRedisAdapter(&redis.Options{})
+		// TODO move duration to cache.Set
+		config.Adapter = NewRedisAdapter(&redis.Options{}, config.CacheDuration)
 	}
 
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
