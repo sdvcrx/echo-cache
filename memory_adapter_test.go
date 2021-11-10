@@ -73,7 +73,7 @@ func TestNewMemoryAdapter(t *testing.T) {
 		gc.AssertCalled(t, "SetWithExpire", key, resp, ttl)
 	})
 
-	t.Run("Set success", func(t *testing.T) {
+	t.Run("Set error", func(t *testing.T) {
 		ErrSet := errors.New("Set Errror")
 		gc.On("SetWithExpire", key, resp, ttl).Return(ErrSet).Once()
 
