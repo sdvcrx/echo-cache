@@ -7,18 +7,43 @@ import (
 	"github.com/bluele/gcache"
 )
 
+type MemoryType int
+
+func (m MemoryType) String() string {
+	switch m {
+	case TYPE_SIMPLE:
+		return "simple"
+	case TYPE_LRU:
+		return "lru"
+	case TYPE_LFU:
+		return "lfu"
+	case TYPE_ARC:
+		return "arc"
+	}
+	return "simple"
+}
+
+const (
+	TYPE_SIMPLE MemoryType = iota + 1
+	TYPE_LRU
+	TYPE_LFU
+	TYPE_ARC
+)
+
 type MemoryAdapter struct {
-	maxSize int
-	gc      gcache.Cache
+	gc gcache.Cache
 }
 
 var _ CacheAdapter = &MemoryAdapter{}
 
-func NewMemoryAdapter(size int) CacheAdapter {
-	gc := gcache.New(size).LRU().Build()
+func NewMemoryAdapter(size int, memoryType MemoryType) CacheAdapter {
+	gc := gcache.
+		New(size).
+		EvictType(memoryType.String()).
+		Build()
+
 	return &MemoryAdapter{
-		maxSize: size,
-		gc:      gc,
+		gc: gc,
 	}
 }
 
