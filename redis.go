@@ -14,10 +14,9 @@ type RedisAdapter struct {
 	ttl    time.Duration
 }
 
-func NewRedisAdapter(opt *redis.Options, ttl time.Duration) CacheAdapter {
+func NewRedisAdapter(opt *redis.Options) CacheAdapter {
 	return &RedisAdapter{
 		client: redis.NewClient(opt),
-		ttl:    ttl,
 	}
 }
 
@@ -35,7 +34,7 @@ func (ra *RedisAdapter) Get(key string) (*Response, error) {
 	return NewResponseFromJSON(cachedResponse)
 }
 
-func (ra *RedisAdapter) Set(key string, response *Response) error {
+func (ra *RedisAdapter) Set(key string, response *Response, ttl time.Duration) error {
 	if response == nil {
 		return nil
 	}
@@ -43,6 +42,6 @@ func (ra *RedisAdapter) Set(key string, response *Response) error {
 	if err != nil {
 		return err
 	}
-	_, err = ra.client.Set(context.Background(), key, b, ra.ttl).Result()
+	_, err = ra.client.Set(context.Background(), key, b, ttl).Result()
 	return err
 }

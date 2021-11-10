@@ -78,8 +78,7 @@ func CacheWithConfig(config CacheConfig) echo.MiddlewareFunc {
 		config.CacheDuration = DefaultCacheDuration
 	}
 	if config.Adapter == nil {
-		// TODO move duration to cache.Set
-		config.Adapter = NewRedisAdapter(&redis.Options{}, config.CacheDuration)
+		config.Adapter = NewRedisAdapter(&redis.Options{})
 	}
 
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
@@ -123,7 +122,7 @@ func CacheWithConfig(config CacheConfig) echo.MiddlewareFunc {
 			}
 			// cache it here
 			resp := NewResponse(writer.statusCode, writer.Header(), resBody.Bytes())
-			if err = config.Adapter.Set(key, resp); err != nil {
+			if err = config.Adapter.Set(key, resp, config.CacheDuration); err != nil {
 				c.Logger().Warnf("Failed to save cache, key=%s err=%s", key, err)
 			}
 			return nil

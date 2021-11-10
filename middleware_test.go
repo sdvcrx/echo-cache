@@ -3,6 +3,7 @@ package cache
 import (
 	"errors"
 	"testing"
+	"time"
 
 	"net/http"
 	"net/http/httptest"
@@ -27,8 +28,8 @@ func (da *dumyAdapter) Get(key string) (*Response, error) {
 	return args.Get(0).(*Response), args.Error(1)
 }
 
-func (da *dumyAdapter) Set(key string, response *Response) error {
-	args := da.Called(key, response)
+func (da *dumyAdapter) Set(key string, response *Response, ttl time.Duration) error {
+	args := da.Called(key, response, ttl)
 	return args.Error(0)
 }
 
@@ -36,7 +37,7 @@ func createDumpAdapter(cacheKey string) *dumyAdapter {
 	adapter := new(dumyAdapter)
 	if cacheKey != "" {
 		adapter.On("Get", cacheKey).Return((*Response)(nil), nil)
-		adapter.On("Set", cacheKey, mock.Anything).Return(nil)
+		adapter.On("Set", cacheKey, mock.Anything, mock.Anything).Return(nil)
 	}
 	return adapter
 }
@@ -79,7 +80,7 @@ func (suite *middlewareTestSuite) TestSkipper() {
 
 	// should skip cache middleware
 	adapter.AssertNotCalled(suite.T(), "Get", mock.Anything)
-	adapter.AssertNotCalled(suite.T(), "Set", mock.Anything, mock.Anything)
+	adapter.AssertNotCalled(suite.T(), "Set", mock.Anything, mock.Anything, mock.Anything)
 }
 
 func (suite *middlewareTestSuite) TestCachePrefix() {
@@ -99,7 +100,7 @@ func (suite *middlewareTestSuite) TestCachePrefix() {
 
 	// should call cache middleware with `key` as cache key
 	adapter.AssertCalled(suite.T(), "Get", key)
-	adapter.AssertCalled(suite.T(), "Set", key, mock.Anything)
+	adapter.AssertCalled(suite.T(), "Set", key, mock.Anything, mock.Anything)
 }
 
 func (suite *middlewareTestSuite) TestCacheHit() {
@@ -127,7 +128,7 @@ func (suite *middlewareTestSuite) TestCacheHit() {
 
 	// should hit cache
 	adapter.AssertCalled(suite.T(), "Get", key)
-	adapter.AssertNotCalled(suite.T(), "Set", key, mock.Anything)
+	adapter.AssertNotCalled(suite.T(), "Set", key, mock.Anything, mock.Anything)
 }
 
 func (suite *middlewareTestSuite) TestSaveHit() {
@@ -150,7 +151,7 @@ func (suite *middlewareTestSuite) TestSaveHit() {
 
 	// should hit cache
 	adapter.AssertCalled(suite.T(), "Get", key)
-	adapter.AssertCalled(suite.T(), "Set", key, mock.Anything)
+	adapter.AssertCalled(suite.T(), "Set", key, mock.Anything, mock.Anything)
 }
 
 func (suite *middlewareTestSuite) TestGetCacheError() {
@@ -160,7 +161,7 @@ func (suite *middlewareTestSuite) TestGetCacheError() {
 	key := "cache-GET-" + url
 	adapter := createDumpAdapter("")
 	adapter.On("Get", key).Return((*Response)(nil), errors.New("GetCacheError"))
-	adapter.On("Set", key, mock.Anything).Return(nil)
+	adapter.On("Set", key, mock.Anything, mock.Anything).Return(nil)
 
 	middleware := CacheWithConfig(CacheConfig{
 		Adapter: adapter,
@@ -175,7 +176,7 @@ func (suite *middlewareTestSuite) TestGetCacheError() {
 
 	// should hit cache
 	adapter.AssertCalled(suite.T(), "Get", key)
-	adapter.AssertCalled(suite.T(), "Set", key, mock.Anything)
+	adapter.AssertCalled(suite.T(), "Set", key, mock.Anything, mock.Anything)
 }
 
 func TestCacheMiddleware(t *testing.T) {

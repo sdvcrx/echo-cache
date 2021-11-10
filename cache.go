@@ -2,6 +2,7 @@ package cache
 
 import (
 	"net/http"
+	"time"
 
 	"encoding/json"
 )
@@ -28,5 +29,5 @@ func NewResponseFromJSON(s string) (*Response, error) {
 
 type CacheAdapter interface {
 	Get(key string) (*Response, error)
-	Set(key string, response *Response) error
+	Set(key string, response *Response, ttl time.Duration) error
 }
