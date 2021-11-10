@@ -7,10 +7,13 @@ import (
 	"os"
 	"time"
 
+	"context"
+
 	bolt "go.etcd.io/bbolt"
 )
 
 type BoltAdapter struct {
+	ctx    context.Context
 	db     *bolt.DB
 	ticker *time.Ticker
 	bucket []byte
@@ -27,7 +30,7 @@ func (r *ExpirableMessage) Expired() bool {
 	return time.Since(r.ExpiredAt) > 0
 }
 
-func NewBoltAdapter(path string) *BoltAdapter {
+func NewBoltAdapter(ctx context.Context, path string) *BoltAdapter {
 	db, err := bolt.Open(path, fs.FileMode(os.O_RDWR|os.O_CREATE), nil)
 	if err != nil {
 		log.Fatalln(err)
@@ -43,6 +46,7 @@ func NewBoltAdapter(path string) *BoltAdapter {
 	}
 
 	ba := &BoltAdapter{
+		ctx:    ctx,
 		bucket: bucket,
 		db:     db,
 	}
@@ -54,9 +58,17 @@ func (ba *BoltAdapter) startCleanupTicker() {
 	ba.ticker = time.NewTicker(1 * time.Minute)
 
 	go func() {
-		for range ba.ticker.C {
-			if err := ba.cleanupExpired(); err != nil {
-				log.Println("Failed to cleanup bolt expired messages", err)
+		for {
+			select {
+			// when ctx Done, ensure db close first
+			case <-ba.ctx.Done():
+				ba.db.Close()
+				ba.ticker.Stop()
+				return
+			case <-ba.ticker.C:
+				if err := ba.cleanupExpired(); err != nil {
+					log.Println("Failed to cleanup bolt expired messages", err)
+				}
 			}
 		}
 	}()
