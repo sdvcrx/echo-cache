@@ -11,7 +11,6 @@ import (
 
 	"strings"
 
-	"github.com/go-redis/redis/v8"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 )
@@ -78,7 +77,8 @@ func CacheWithConfig(config CacheConfig) echo.MiddlewareFunc {
 		config.CacheDuration = DefaultCacheDuration
 	}
 	if config.Adapter == nil {
-		config.Adapter = NewRedisAdapter(&redis.Options{})
+		// Default Adapter
+		config.Adapter = NewMemoryAdapter(100, TYPE_LRU)
 	}
 
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
