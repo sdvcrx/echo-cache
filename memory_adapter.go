@@ -49,8 +49,11 @@ func NewMemoryAdapter(size int, memoryType MemoryType) CacheAdapter {
 
 func (ma *MemoryAdapter) Get(key string) (*Response, error) {
 	resp, err := ma.gc.Get(key)
-	if err != nil && errors.Is(err, gcache.KeyNotFoundError) {
-		return nil, nil
+	if err != nil {
+		if errors.Is(err, gcache.KeyNotFoundError) {
+			return nil, nil
+		}
+		return nil, err
 	}
 	return resp.(*Response), err
 }
