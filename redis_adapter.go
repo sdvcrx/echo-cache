@@ -2,7 +2,6 @@ package cache
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"time"
 
@@ -11,7 +10,6 @@ import (
 
 type RedisAdapter struct {
 	client *redis.Client
-	ttl    time.Duration
 }
 
 func NewRedisAdapter(opt *redis.Options) CacheAdapter {
@@ -38,7 +36,7 @@ func (ra *RedisAdapter) Set(key string, response *Response, ttl time.Duration) e
 	if response == nil {
 		return nil
 	}
-	b, err := json.Marshal(response)
+	b, err := response.Marshal()
 	if err != nil {
 		return err
 	}

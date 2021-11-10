@@ -13,6 +13,10 @@ type Response struct {
 	Body       []byte      `json:"body"`
 }
 
+func (r *Response) Marshal() ([]byte, error) {
+	return json.Marshal(r)
+}
+
 func NewResponse(code int, header http.Header, body []byte) *Response {
 	return &Response{
 		StatusCode: code,
