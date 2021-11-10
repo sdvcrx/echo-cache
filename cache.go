@@ -17,6 +17,10 @@ func (r *Response) Marshal() ([]byte, error) {
 	return json.Marshal(r)
 }
 
+func (r *Response) Unmarshal(b []byte) error {
+	return json.Unmarshal(b, r)
+}
+
 func NewResponse(code int, header http.Header, body []byte) *Response {
 	return &Response{
 		StatusCode: code,
@@ -27,7 +31,7 @@ func NewResponse(code int, header http.Header, body []byte) *Response {
 
 func NewResponseFromJSON(s string) (*Response, error) {
 	r := Response{}
-	err := json.Unmarshal([]byte(s), &r)
+	err := r.Unmarshal([]byte(s))
 	return &r, err
 }
 
