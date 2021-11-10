@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -16,7 +17,7 @@ func TestExpirableMessage(t *testing.T) {
 }
 
 func TestBoltAdapter(t *testing.T) {
-	c := NewBoltAdapter(t.TempDir() + "/bolt")
+	c := NewBoltAdapter(context.Background(), t.TempDir()+"/bolt")
 	// dont run auto cleanup
 	c.ticker.Stop()
 	key := "cacheKey"
