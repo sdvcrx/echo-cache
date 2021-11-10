@@ -2,9 +2,7 @@ package cache
 
 import (
 	"encoding/json"
-	"io/fs"
 	"log"
-	"os"
 	"time"
 
 	"context"
@@ -31,7 +29,7 @@ func (r *ExpirableMessage) Expired() bool {
 }
 
 func NewBoltAdapter(ctx context.Context, path string) *BoltAdapter {
-	db, err := bolt.Open(path, fs.FileMode(os.O_RDWR|os.O_CREATE), nil)
+	db, err := bolt.Open(path, 0644, nil)
 	if err != nil {
 		log.Fatalln(err)
 	}
