@@ -59,5 +59,8 @@ func (ma *MemoryAdapter) Get(key string) (*Response, error) {
 }
 
 func (ma *MemoryAdapter) Set(key string, response *Response, ttl time.Duration) error {
+	if ttl == 0 {
+		return ma.gc.Set(key, response)
+	}
 	return ma.gc.SetWithExpire(key, response, ttl)
 }
