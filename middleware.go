@@ -100,8 +100,8 @@ func CacheWithConfig(config CacheConfig) echo.MiddlewareFunc {
 				for k, v := range cachedResponse.Headers {
 					c.Response().Header().Set(k, strings.Join(v, ","))
 				}
-				c.Response().Write(cachedResponse.Body)
-				return nil
+				_, err = c.Response().Write(cachedResponse.Body)
+				return err
 			}
 
 			// copy from https://github.com/labstack/echo/blob/master/middleware/body_dump.go
