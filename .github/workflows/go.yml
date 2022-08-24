@@ -10,6 +10,19 @@ jobs:
 
   build:
     runs-on: ubuntu-latest
+
+    services:
+      # https://docs.github.com/cn/actions/using-containerized-services/creating-redis-service-containers#running-jobs-directly-on-the-runner-machine
+      redis:
+        image: redis
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
     steps:
     - uses: actions/checkout@v3
 
