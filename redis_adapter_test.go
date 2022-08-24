@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -58,5 +59,40 @@ func TestCacheRedisAdapter(t *testing.T) {
 		mock.ExpectSet(key, respb, 0).SetErr(redis.ErrClosed)
 		err := ra.Set(key, resp, 0)
 		assert.ErrorIs(t, err, redis.ErrClosed)
+	})
+}
+
+func TestRedisAdapterWithRealServer(t *testing.T) {
+	db := redis.NewClient(&redis.Options{})
+	if err := db.Ping(context.Background()).Err(); err != nil {
+		t.Skip("Cannot connect to redis server, skip test redis with real server")
+	}
+	ra := &RedisAdapter{
+		client: db,
+	}
+	key := "cacheKey"
+	body := []byte("OK")
+	resp := NewResponse(200, nil, body)
+
+	t.Run("Set", func(t *testing.T) {
+		err := ra.Set(key, resp, time.Minute)
+		assert.NoError(t, err)
+	})
+
+	t.Run("Get", func(t *testing.T) {
+		resp, err := ra.Get(key)
+		assert.NoError(t, err)
+		assert.NotNil(t, resp)
+	})
+
+	t.Run("Set with TTL", func(t *testing.T) {
+		ttl := time.Second
+		err := ra.Set(key, resp, ttl)
+		assert.NoError(t, err)
+
+		time.Sleep(ttl)
+		resp, err := ra.Get(key)
+		assert.NoError(t, err)
+		assert.Nil(t, resp)
 	})
 }
