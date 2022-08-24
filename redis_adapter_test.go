@@ -90,7 +90,7 @@ func TestRedisAdapterWithRealServer(t *testing.T) {
 		err := ra.Set(key, resp, ttl)
 		assert.NoError(t, err)
 
-		time.Sleep(ttl)
+		time.Sleep(2*ttl)
 		resp, err := ra.Get(key)
 		assert.NoError(t, err)
 		assert.Nil(t, resp)
