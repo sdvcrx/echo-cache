@@ -39,7 +39,7 @@ expired_at INTEGER
 
 func (sa *SQLAdapter) Get(key string) (*Response, error) {
 	b := []byte{}
-	queryStmt := fmt.Sprintf("SELECT value FROM %s WHERE key = ? AND expired_at > ?", sa.tableName)
+	queryStmt := fmt.Sprintf("SELECT value FROM %s WHERE key = $1 AND expired_at > $2", sa.tableName)
 	err := sa.db.QueryRow(queryStmt, key, time.Now().UnixMilli()).Scan(&b)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -52,7 +52,7 @@ func (sa *SQLAdapter) Get(key string) (*Response, error) {
 
 func (sa *SQLAdapter) Set(key string, response *Response, ttl time.Duration) error {
 	insertStmt := fmt.Sprintf(`INSERT INTO %s
-(key, value, expired_at) VALUES (?, ?, ?)
+(key, value, expired_at) VALUES ($1, $2, $3)
 ON CONFLICT (key)
 DO UPDATE SET value = EXCLUDED.value, expired_at = EXCLUDED.expired_at
 `, sa.tableName)
