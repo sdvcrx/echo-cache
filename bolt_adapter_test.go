@@ -10,7 +10,7 @@ import (
 )
 
 func TestExpirableMessage(t *testing.T) {
-	msg := ExpirableMessage{
+	msg := expirableMessage{
 		ExpiredAt: time.Now().Add(-1 * time.Minute),
 	}
 	assert.True(t, msg.Expired())

@@ -19,12 +19,12 @@ type BoltAdapter struct {
 
 var _ CacheAdapter = &BoltAdapter{}
 
-type ExpirableMessage struct {
+type expirableMessage struct {
 	Response  *Response `json:"response"`
 	ExpiredAt time.Time `json:"expired_at"`
 }
 
-func (r *ExpirableMessage) Expired() bool {
+func (r *expirableMessage) Expired() bool {
 	return time.Since(r.ExpiredAt) > 0
 }
 
@@ -80,7 +80,7 @@ func (ba *BoltAdapter) cleanupExpired() error {
 	defer tx.Rollback()
 	b := tx.Bucket(ba.bucket)
 	err = b.ForEach(func(k, v []byte) error {
-		var msg ExpirableMessage
+		var msg expirableMessage
 		err := json.Unmarshal(v, &msg)
 		if err != nil {
 			return err
@@ -97,7 +97,7 @@ func (ba *BoltAdapter) cleanupExpired() error {
 }
 
 func (ba *BoltAdapter) Get(key string) (*Response, error) {
-	var msg ExpirableMessage
+	var msg expirableMessage
 
 	err := ba.db.View(func(t *bolt.Tx) error {
 		b := t.Bucket(ba.bucket)
@@ -122,7 +122,7 @@ func (ba *BoltAdapter) Get(key string) (*Response, error) {
 }
 
 func (ba *BoltAdapter) Set(key string, response *Response, ttl time.Duration) error {
-	msg := ExpirableMessage{
+	msg := expirableMessage{
 		Response:  response,
 		ExpiredAt: time.Now().Add(ttl),
 	}
