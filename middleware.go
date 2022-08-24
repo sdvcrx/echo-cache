@@ -96,10 +96,10 @@ func CacheWithConfig(config CacheConfig) echo.MiddlewareFunc {
 			if err != nil {
 				c.Logger().Warnf("Failed to get cache, err=%s", err)
 			} else if cachedResponse != nil {
-				c.Response().WriteHeader(cachedResponse.StatusCode)
 				for k, v := range cachedResponse.Headers {
 					c.Response().Header().Set(k, strings.Join(v, ","))
 				}
+				c.Response().WriteHeader(cachedResponse.StatusCode)
 				_, err = c.Response().Write(cachedResponse.Body)
 				return err
 			}
