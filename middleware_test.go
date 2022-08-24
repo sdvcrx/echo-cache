@@ -123,7 +123,7 @@ func (suite *middlewareTestSuite) TestCacheHit() {
 
 	// should cache statusCode, headers and body
 	suite.Equal(201, rec.Code)
-	suite.Equal("OK", rec.Header().Get("X-RESP"))
+	suite.Equal("OK", rec.Result().Header.Get("X-RESP"))
 	suite.Equal("OK", rec.Body.String())
 
 	// should hit cache
@@ -146,7 +146,7 @@ func (suite *middlewareTestSuite) TestSaveHit() {
 
 	// should cache statusCode, headers and body
 	suite.Equal(200, rec.Code)
-	suite.Equal("OK", rec.Header().Get("X-TEST"))
+	suite.Equal("OK", rec.Result().Header.Get("X-TEST"))
 	suite.Equal("OK", rec.Body.String())
 
 	// should hit cache
@@ -171,7 +171,7 @@ func (suite *middlewareTestSuite) TestGetCacheError() {
 
 	// get cache failed but still can get response
 	suite.Equal(200, rec.Code)
-	suite.Equal("OK", rec.Header().Get("X-TEST"))
+	suite.Equal("OK", rec.Result().Header.Get("X-TEST"))
 	suite.Equal("OK", rec.Body.String())
 
 	// should hit cache
