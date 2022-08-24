@@ -1,5 +1,8 @@
 # echo-cache
 
+[![Build Status](https://github.com/sdvcrx/echo-cache/actions/workflows/go.yml/badge.svg)](https://github.com/sdvcrx/echo-cache/actions/workflows/go.yml)
+[![PkgGoDev](https://pkg.go.dev/badge/github.com/sdvcrx/echo-cache)](https://pkg.go.dev/github.com/sdvcrx/echo-cache)
+
 A simple [echo](https://echo.labstack.com/) Cache middleware.
 
 ## Install
@@ -13,6 +16,12 @@ go get -u github.com/sdvcrx/echo-cache
 ### Basic Usage
 
 ```go
+import (
+    "github.com/sdvcrx/echo-cache"
+)
+
+// ...
+
 e.Use(cache.Cache())
 ```
 
