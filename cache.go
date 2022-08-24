@@ -29,10 +29,14 @@ func NewResponse(code int, header http.Header, body []byte) *Response {
 	}
 }
 
-func NewResponseFromJSON(s string) (*Response, error) {
+func NewResponseFromJSON(jsonb []byte) (*Response, error) {
 	r := Response{}
-	err := r.Unmarshal([]byte(s))
+	err := r.Unmarshal(jsonb)
 	return &r, err
+}
+
+func NewResponseFromJSONString(s string) (*Response, error) {
+	return NewResponseFromJSON([]byte(s))
 }
 
 type CacheAdapter interface {

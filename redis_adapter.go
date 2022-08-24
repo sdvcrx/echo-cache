@@ -29,7 +29,7 @@ func (ra *RedisAdapter) Get(key string) (*Response, error) {
 		}
 		return nil, err
 	}
-	return NewResponseFromJSON(cachedResponse)
+	return NewResponseFromJSONString(cachedResponse)
 }
 
 func (ra *RedisAdapter) Set(key string, response *Response, ttl time.Duration) error {
