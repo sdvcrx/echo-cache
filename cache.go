@@ -9,8 +9,8 @@ import (
 
 type Response struct {
 	StatusCode int         `json:"status_code"`
-	Headers    http.Header `json:"headers"`
-	Body       []byte      `json:"body"`
+	Headers    http.Header `json:"headers,omitempty"`
+	Body       []byte      `json:"body,omitempty"`
 }
 
 func (r *Response) Marshal() ([]byte, error) {
