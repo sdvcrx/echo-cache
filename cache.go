@@ -4,21 +4,21 @@ import (
 	"net/http"
 	"time"
 
-	"encoding/json"
+	"github.com/vmihailenco/msgpack/v5"
 )
 
 type Response struct {
-	StatusCode int         `json:"status_code"`
-	Headers    http.Header `json:"headers,omitempty"`
-	Body       []byte      `json:"body,omitempty"`
+	StatusCode int         `msgpack:"status_code"`
+	Headers    http.Header `msgpack:"headers,omitempty"`
+	Body       []byte      `msgpack:"body,omitempty"`
 }
 
 func (r *Response) Marshal() ([]byte, error) {
-	return json.Marshal(r)
+	return msgpack.Marshal(r)
 }
 
 func (r *Response) Unmarshal(b []byte) error {
-	return json.Unmarshal(b, r)
+	return msgpack.Unmarshal(b, r)
 }
 
 func NewResponse(code int, header http.Header, body []byte) *Response {
