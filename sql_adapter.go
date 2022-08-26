@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -8,29 +9,61 @@ import (
 	"time"
 )
 
-type SQLAdapter struct {
+const (
+	SQLite dbName = iota
+	PostgreSQL
+	MySQL
+)
+
+type SQLAdapterOption struct {
 	db        *sql.DB
+	ctx       context.Context
 	tableName string
+	dbName    dbName
+}
+
+type SQLAdapter struct {
+	SQLAdapterOption
+	dialect *sqlDialect
 
 	stmtGet *sql.Stmt
 	stmtSet *sql.Stmt
 }
 
-func NewSQLAdapter(db *sql.DB, tableName string) CacheAdapter {
+var DefaultSQLAdapterOption = SQLAdapterOption{
+	ctx:       context.Background(),
+	tableName: "echo_cache",
+	dbName:    SQLite,
+}
+
+func NewSQLAdapter(option SQLAdapterOption) CacheAdapter {
 	adapter := &SQLAdapter{
-		db:        db,
-		tableName: tableName,
+		SQLAdapterOption: DefaultSQLAdapterOption,
 	}
+
+	if option.ctx != nil {
+		adapter.ctx = option.ctx
+	}
+	if option.db != nil {
+		adapter.db = option.db
+	}
+	if option.tableName != "" {
+		adapter.tableName = option.tableName
+	}
+	if option.dbName != SQLite {
+		adapter.dbName = option.dbName
+	}
+
 	adapter.init()
 	return adapter
 }
 
 func (sa *SQLAdapter) createTable() {
 	query := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
-key TEXT UNIQUE,
-value BLOB,
-expired_at INTEGER
-)`, sa.tableName)
+cache_key %s PRIMARY KEY,
+value %s,
+expired_at %s
+)`, sa.tableName, sa.dialect.TypeText, sa.dialect.TypeBytes, sa.dialect.TypeBigInt)
 
 	_, err := sa.db.Exec(query)
 	if err != nil {
@@ -39,16 +72,31 @@ expired_at INTEGER
 }
 
 func (sa *SQLAdapter) prepareGet() *sql.Stmt {
-	query := fmt.Sprintf("SELECT value FROM %s WHERE key = $1 AND expired_at > $2", sa.tableName)
+	whereClause := "cache_key = ? AND expired_at > ?"
+	if sa.dbName == PostgreSQL {
+		whereClause = "cache_key = $1 AND expired_at > $2"
+	}
+
+	query := fmt.Sprintf(
+		"SELECT value FROM %s WHERE %s",
+		sa.tableName, whereClause,
+	)
 	return Must(sa.db.Prepare(query))
 }
 
 func (sa *SQLAdapter) prepareSet() *sql.Stmt {
-	query := fmt.Sprintf(`INSERT INTO %s
-(key, value, expired_at) VALUES ($1, $2, $3)
-ON CONFLICT (key)
-DO UPDATE SET value = EXCLUDED.value, expired_at = EXCLUDED.expired_at
-`, sa.tableName)
+	placeholder := "?, ?, ?"
+	onConflict := `ON CONFLICT (cache_key) DO UPDATE
+SET value = EXCLUDED.value, expired_at = EXCLUDED.expired_at`
+
+	if sa.dbName == PostgreSQL {
+		placeholder = "$1, $2, $3"
+	} else if sa.dbName == MySQL {
+		onConflict = `ON DUPLICATE KEY
+UPDATE value = VALUES(value), expired_at = VALUES(expired_at)`
+	}
+
+	query := fmt.Sprintf(`INSERT INTO %s (cache_key, value, expired_at) VALUES (%s) %s`, sa.tableName, placeholder, onConflict)
 	return Must(sa.db.Prepare(query))
 }
 
@@ -56,7 +104,15 @@ func (sa *SQLAdapter) init() {
 	if sa.tableName == "" {
 		log.Fatalln("echo-cache sql_adapter: tableName cannot be empty")
 	}
-	// TODO check and quote tableName
+	if sa.db == nil {
+		log.Fatalln("echo-cache sql_adapter: db cannot be nil")
+	}
+	if sa.dbName.String() == "invalid" {
+		log.Fatalln("echo-cache sql_adapter: dbName is invalid")
+	}
+	// TODO quote tableName
+
+	sa.dialect = getDialect(sa.dbName)
 
 	sa.createTable()
 	sa.stmtGet = sa.prepareGet()
