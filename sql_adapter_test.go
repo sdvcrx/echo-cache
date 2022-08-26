@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"context"
 	"database/sql"
 	"testing"
 	"time"
@@ -36,8 +37,12 @@ func TestCacheSQLAdapter(t *testing.T) {
 		tests = append(tests, testCase{MySQL, mysqlDB})
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	for _, tt := range tests {
 		sa := NewSQLAdapter(SQLAdapterOption{
+			ctx:    ctx,
 			db:     tt.db,
 			dbName: tt.dbName,
 		})

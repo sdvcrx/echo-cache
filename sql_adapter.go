@@ -65,13 +65,13 @@ value %s,
 expired_at %s
 )`, sa.tableName, sa.dialect.TypeText, sa.dialect.TypeBytes, sa.dialect.TypeBigInt)
 
-	_, err := sa.db.Exec(query)
+	_, err := sa.db.ExecContext(sa.ctx, query)
 	if err != nil {
 		log.Fatalln(err)
 	}
 }
 
-func (sa *SQLAdapter) prepareGet() *sql.Stmt {
+func (sa *SQLAdapter) prepareGet(ctx context.Context) *sql.Stmt {
 	whereClause := "cache_key = ? AND expired_at > ?"
 	if sa.dbName == PostgreSQL {
 		whereClause = "cache_key = $1 AND expired_at > $2"
@@ -81,10 +81,10 @@ func (sa *SQLAdapter) prepareGet() *sql.Stmt {
 		"SELECT value FROM %s WHERE %s",
 		sa.tableName, whereClause,
 	)
-	return Must(sa.db.Prepare(query))
+	return Must(sa.db.PrepareContext(ctx, query))
 }
 
-func (sa *SQLAdapter) prepareSet() *sql.Stmt {
+func (sa *SQLAdapter) prepareSet(ctx context.Context) *sql.Stmt {
 	placeholder := "?, ?, ?"
 	onConflict := `ON CONFLICT (cache_key) DO UPDATE
 SET value = EXCLUDED.value, expired_at = EXCLUDED.expired_at`
@@ -97,7 +97,7 @@ UPDATE value = VALUES(value), expired_at = VALUES(expired_at)`
 	}
 
 	query := fmt.Sprintf(`INSERT INTO %s (cache_key, value, expired_at) VALUES (%s) %s`, sa.tableName, placeholder, onConflict)
-	return Must(sa.db.Prepare(query))
+	return Must(sa.db.PrepareContext(ctx, query))
 }
 
 func (sa *SQLAdapter) init() {
@@ -115,13 +115,13 @@ func (sa *SQLAdapter) init() {
 	sa.dialect = getDialect(sa.dbName)
 
 	sa.createTable()
-	sa.stmtGet = sa.prepareGet()
-	sa.stmtSet = sa.prepareSet()
+	sa.stmtGet = sa.prepareGet(sa.ctx)
+	sa.stmtSet = sa.prepareSet(sa.ctx)
 }
 
 func (sa *SQLAdapter) Get(key string) (*Response, error) {
 	b := []byte{}
-	err := sa.stmtGet.QueryRow(key, time.Now().UnixMilli()).Scan(&b)
+	err := sa.stmtGet.QueryRowContext(sa.ctx, key, time.Now().UnixMilli()).Scan(&b)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -137,6 +137,6 @@ func (sa *SQLAdapter) Set(key string, response *Response, ttl time.Duration) err
 		return err
 	}
 
-	_, err = sa.stmtSet.Exec(key, b, time.Now().Add(ttl).UnixMilli())
+	_, err = sa.stmtSet.ExecContext(sa.ctx, key, b, time.Now().Add(ttl).UnixMilli())
 	return err
 }
