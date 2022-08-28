@@ -42,9 +42,9 @@ func TestCacheSQLAdapter(t *testing.T) {
 
 	for _, tt := range tests {
 		sa := NewSQLAdapter(SQLAdapterOption{
-			ctx:    ctx,
-			db:     tt.db,
-			dbName: tt.dbName,
+			Ctx:    ctx,
+			DB:     tt.db,
+			DBName: tt.dbName,
 		})
 
 		t.Run(tt.dbName.String(), func(t *testing.T) {
