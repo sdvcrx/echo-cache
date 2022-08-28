@@ -25,9 +25,11 @@ type SQLAdapterOption struct {
 type SQLAdapter struct {
 	SQLAdapterOption
 	dialect *sqlDialect
+	ticket  *time.Ticker
 
-	stmtGet *sql.Stmt
-	stmtSet *sql.Stmt
+	stmtGet          *sql.Stmt
+	stmtSet          *sql.Stmt
+	stmtCleanExpired *sql.Stmt
 }
 
 var DefaultSQLAdapterOption = SQLAdapterOption{
@@ -55,6 +57,7 @@ func NewSQLAdapter(option SQLAdapterOption) CacheAdapter {
 	}
 
 	adapter.init()
+	adapter.startCleanExpired()
 	return adapter
 }
 
@@ -100,6 +103,15 @@ UPDATE value = VALUES(value), expired_at = VALUES(expired_at)`
 	return Must(sa.db.PrepareContext(ctx, query))
 }
 
+func (sa *SQLAdapter) prepareCleanExpired(ctx context.Context) *sql.Stmt {
+	placeholder := "?"
+	if sa.dbName == PostgreSQL {
+		placeholder = "$1"
+	}
+	query := fmt.Sprintf("DELETE FROM %s WHERE expired_at < %s", sa.tableName, placeholder)
+	return Must(sa.db.PrepareContext(ctx, query))
+}
+
 func (sa *SQLAdapter) init() {
 	if sa.tableName == "" {
 		log.Fatalln("echo-cache sql_adapter: tableName cannot be empty")
@@ -117,6 +129,31 @@ func (sa *SQLAdapter) init() {
 	sa.createTable()
 	sa.stmtGet = sa.prepareGet(sa.ctx)
 	sa.stmtSet = sa.prepareSet(sa.ctx)
+	sa.stmtCleanExpired = sa.prepareCleanExpired(sa.ctx)
+}
+
+func (sa *SQLAdapter) cleanExpired() error {
+	_, err := sa.stmtCleanExpired.Exec(time.Now().UnixMilli())
+	return err
+}
+
+func (sa *SQLAdapter) startCleanExpired() {
+	sa.ticket = time.NewTicker(1 * time.Minute)
+
+	go func() {
+		for {
+			select {
+			case <-sa.ctx.Done():
+				sa.db.Close()
+				sa.ticket.Stop()
+				return
+			case <-sa.ticket.C:
+				if _, err := sa.stmtCleanExpired.Exec(time.Now().UnixMilli()); err != nil {
+					log.Println("Failed to cleanup expired data", err)
+				}
+			}
+		}
+	}()
 }
 
 func (sa *SQLAdapter) Get(key string) (*Response, error) {
