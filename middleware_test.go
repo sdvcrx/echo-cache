@@ -60,6 +60,26 @@ func (suite *middlewareTestSuite) testCacheKey(prefix string, req *http.Request)
 	return "key"
 }
 
+func (suite *middlewareTestSuite) TestDefaultSkipper() {
+	req := httptest.NewRequest(http.MethodPost, "/cache", nil)
+	rec := httptest.NewRecorder()
+	c := suite.e.NewContext(req, rec)
+	suite.Equal(true, DefaultCacheSkipper(c))
+
+	adapter := createDumpAdapter("key")
+
+	middleware := CacheWithConfig(CacheConfig{
+		Adapter:  adapter,
+		CacheKey: suite.testCacheKey,
+	})
+	err := middleware(suite.handler)(c)
+	suite.NoError(err)
+
+	// should skip cache middleware
+	adapter.AssertNotCalled(suite.T(), "Get", mock.Anything)
+	adapter.AssertNotCalled(suite.T(), "Set", mock.Anything, mock.Anything, mock.Anything)
+}
+
 func (suite *middlewareTestSuite) TestSkipper() {
 	path := "/cache"
 	skipper := func(c echo.Context) bool {

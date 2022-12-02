@@ -29,11 +29,17 @@ func DefaultCacheKey(prefix string, req *http.Request) string {
 	return fmt.Sprintf("%s-%s-%s", prefix, req.Method, req.URL)
 }
 
+// Only cache HTTP GET and HEAD method by default.
+func DefaultCacheSkipper(c echo.Context) bool {
+	method := c.Request().Method
+	return method != http.MethodGet && method != http.MethodHead
+}
+
 var (
 	DefaultCachePrefix   = "cache"
 	DefaultCacheDuration = time.Duration(0)
 	DefaultCacheConfig   = CacheConfig{
-		Skipper:       middleware.DefaultSkipper,
+		Skipper:       DefaultCacheSkipper,
 		CachePrefix:   DefaultCachePrefix,
 		CacheDuration: DefaultCacheDuration,
 		CacheKey:      DefaultCacheKey,
