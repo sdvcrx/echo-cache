@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"sync"
 	"time"
 )
 
@@ -132,7 +133,13 @@ func (sa *SQLAdapter) init() {
 	sa.stmtCleanExpired = sa.prepareCleanExpired(sa.Ctx)
 }
 
+// The lock of clearning expired cache
+var sqlCleanMutex sync.Mutex
+
 func (sa *SQLAdapter) cleanExpired() error {
+	sqlCleanMutex.Lock()
+	defer sqlCleanMutex.Unlock()
+
 	_, err := sa.stmtCleanExpired.Exec(time.Now().UnixMilli())
 	return err
 }
@@ -148,8 +155,8 @@ func (sa *SQLAdapter) startCleanExpired() {
 				sa.ticket.Stop()
 				return
 			case <-sa.ticket.C:
-				if _, err := sa.stmtCleanExpired.Exec(time.Now().UnixMilli()); err != nil {
-					log.Println("Failed to cleanup expired data", err)
+				if err := sa.cleanExpired(); err != nil {
+					log.Println("Failed to cleanup expired data:", err)
 				}
 			}
 		}
