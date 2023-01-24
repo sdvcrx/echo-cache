@@ -21,7 +21,7 @@ func (m *mockGCache) Get(key interface{}) (interface{}, error) {
 	if ret.Get(0) == nil {
 		return nil, ret.Error(1)
 	}
-	return ret.Get(0).(interface{}), ret.Error(1)
+	return ret.Get(0), ret.Error(1)
 }
 
 func (m *mockGCache) Set(key, value interface{}) error {

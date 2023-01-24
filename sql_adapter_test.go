@@ -26,13 +26,13 @@ func TestCacheSQLAdapter(t *testing.T) {
 	}
 
 	// docker run -it --rm -e POSTGRES_PASSWORD=postgres -p 5432:5432 postgres:alpine
-	pgDB, err := sql.Open("postgres", "user=postgres password=postgres dbname=postgres sslmode=disable")
+	pgDB, _ := sql.Open("postgres", "user=postgres password=postgres dbname=postgres sslmode=disable")
 	if pgDB.Ping() == nil {
 		tests = append(tests, testCase{PostgreSQL, pgDB})
 	}
 
 	// docker run -it --rm -e MYSQL_DATABASE=cache -e MYSQL_ROOT_PASSWORD=mysql -p 3306:3306 mysql
-	mysqlDB, err := sql.Open("mysql", "root:mysql@/cache")
+	mysqlDB, _ := sql.Open("mysql", "root:mysql@/cache")
 	if mysqlDB.Ping() == nil {
 		tests = append(tests, testCase{MySQL, mysqlDB})
 	}
