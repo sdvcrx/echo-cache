@@ -41,15 +41,13 @@ func TestNewMemoryAdapter(t *testing.T) {
 	}
 	key := "cacheKey"
 	body := []byte("OK")
-	resp := NewResponse(200, nil, body)
 	ttl := time.Minute
 
 	t.Run("Get success", func(t *testing.T) {
-		gc.On("Get", key).Return(resp, nil).Once()
+		gc.On("Get", key).Return(body, nil).Once()
 		r, err := cache.Get(key)
 		assert.NoError(t, err)
-		assert.Equal(t, resp.StatusCode, r.StatusCode)
-		assert.Equal(t, resp.Body, r.Body)
+		assert.Equal(t, body, r)
 		gc.AssertCalled(t, "Get", key)
 	})
 
@@ -71,27 +69,27 @@ func TestNewMemoryAdapter(t *testing.T) {
 	})
 
 	t.Run("Set success", func(t *testing.T) {
-		gc.On("SetWithExpire", key, resp, ttl).Return(nil).Once()
+		gc.On("SetWithExpire", key, body, ttl).Return(nil).Once()
 
-		err := cache.Set(key, resp, ttl)
+		err := cache.Set(key, body, ttl)
 		assert.NoError(t, err)
-		gc.AssertCalled(t, "SetWithExpire", key, resp, ttl)
+		gc.AssertCalled(t, "SetWithExpire", key, body, ttl)
 	})
 
 	t.Run("Set with zero duration", func(t *testing.T) {
-		gc.On("Set", key, resp).Return(nil).Once()
+		gc.On("Set", key, body).Return(nil).Once()
 
-		err := cache.Set(key, resp, 0)
+		err := cache.Set(key, body, 0)
 		assert.NoError(t, err)
-		gc.AssertCalled(t, "Set", key, resp)
+		gc.AssertCalled(t, "Set", key, body)
 	})
 
 	t.Run("Set error", func(t *testing.T) {
 		ErrSet := errors.New("Set Errror")
-		gc.On("SetWithExpire", key, resp, ttl).Return(ErrSet).Once()
+		gc.On("SetWithExpire", key, body, ttl).Return(ErrSet).Once()
 
-		err := cache.Set(key, resp, ttl)
+		err := cache.Set(key, body, ttl)
 		assert.ErrorIs(t, err, ErrSet)
-		gc.AssertCalled(t, "SetWithExpire", key, resp, ttl)
+		gc.AssertCalled(t, "SetWithExpire", key, body, ttl)
 	})
 }

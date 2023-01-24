@@ -20,8 +20,8 @@ func NewRedisAdapter(opt *redis.Options) CacheAdapter {
 
 var _ CacheAdapter = &RedisAdapter{}
 
-func (ra *RedisAdapter) Get(key string) (*Response, error) {
-	cachedResponse, err := ra.client.Get(context.Background(), key).Result()
+func (ra *RedisAdapter) Get(key string) ([]byte, error) {
+	val, err := ra.client.Get(context.Background(), key).Bytes()
 	if err != nil {
 		// no data
 		if errors.Is(err, redis.Nil) {
@@ -29,17 +29,10 @@ func (ra *RedisAdapter) Get(key string) (*Response, error) {
 		}
 		return nil, err
 	}
-	return NewResponseFromJSONString(cachedResponse)
+	return val, nil
 }
 
-func (ra *RedisAdapter) Set(key string, response *Response, ttl time.Duration) error {
-	if response == nil {
-		return nil
-	}
-	b, err := response.Marshal()
-	if err != nil {
-		return err
-	}
-	_, err = ra.client.Set(context.Background(), key, b, ttl).Result()
+func (ra *RedisAdapter) Set(key string, val []byte, ttl time.Duration) error {
+	_, err := ra.client.Set(context.Background(), key, val, ttl).Result()
 	return err
 }

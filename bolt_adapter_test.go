@@ -21,11 +21,12 @@ func TestBoltAdapter(t *testing.T) {
 	// dont run auto cleanup
 	c.ticker.Stop()
 	key := "cacheKey"
+	val := "OK"
+	valByte := []byte(val)
 
 	t.Run("cleanup", func(t *testing.T) {
 		// add expired responses
-		assert.NoError(t, c.Set(key, &Response{StatusCode: 1}, -1*time.Minute))
-		assert.NoError(t, c.Set(key, &Response{StatusCode: 2}, -1*time.Minute))
+		assert.NoError(t, c.Set(key, valByte, -1*time.Minute))
 
 		// manual trigger cleanup
 		assert.NoError(t, c.cleanupExpired())
@@ -42,7 +43,7 @@ func TestBoltAdapter(t *testing.T) {
 	})
 
 	t.Run("Set success", func(t *testing.T) {
-		err := c.Set(key, NewResponse(200, nil, []byte("OK")), time.Minute*1)
+		err := c.Set(key, valByte, time.Minute*1)
 		assert.NoError(t, err)
 	})
 
@@ -50,7 +51,7 @@ func TestBoltAdapter(t *testing.T) {
 		resp, err := c.Get(key)
 		assert.NoError(t, err)
 		assert.NotNil(t, resp)
-		assert.Equal(t, 200, resp.StatusCode)
+		assert.Equal(t, valByte, resp)
 	})
 
 	t.Run("Get nil", func(t *testing.T) {
@@ -69,7 +70,7 @@ func TestBoltAdapter(t *testing.T) {
 		assert.NoError(t, err)
 
 		res, err := c.Get(key)
-		assert.EqualError(t, err, "invalid character '|' looking for beginning of object key string")
+		assert.ErrorContains(t, err, "unexpected")
 		assert.Nil(t, res)
 	})
 }

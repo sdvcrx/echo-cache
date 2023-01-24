@@ -23,20 +23,20 @@ type dumyAdapter struct {
 	mock.Mock
 }
 
-func (da *dumyAdapter) Get(key string) (*Response, error) {
+func (da *dumyAdapter) Get(key string) ([]byte, error) {
 	args := da.Called(key)
-	return args.Get(0).(*Response), args.Error(1)
+	return args.Get(0).([]byte), args.Error(1)
 }
 
-func (da *dumyAdapter) Set(key string, response *Response, ttl time.Duration) error {
-	args := da.Called(key, response, ttl)
+func (da *dumyAdapter) Set(key string, val []byte, ttl time.Duration) error {
+	args := da.Called(key, val, ttl)
 	return args.Error(0)
 }
 
 func createDumpAdapter(cacheKey string) *dumyAdapter {
 	adapter := new(dumyAdapter)
 	if cacheKey != "" {
-		adapter.On("Get", cacheKey).Return((*Response)(nil), nil)
+		adapter.On("Get", cacheKey).Return(([]byte)(nil), nil)
 		adapter.On("Set", cacheKey, mock.Anything, mock.Anything).Return(nil)
 	}
 	return adapter
@@ -44,12 +44,14 @@ func createDumpAdapter(cacheKey string) *dumyAdapter {
 
 type middlewareTestSuite struct {
 	suite.Suite
+	enc     Encoder
 	e       *echo.Echo
 	handler echo.HandlerFunc
 }
 
 func (suite *middlewareTestSuite) SetupTest() {
 	suite.e = echo.New()
+	suite.enc = &JSONEncoder{}
 	suite.handler = func(c echo.Context) error {
 		c.Response().Header().Set("X-TEST", "OK")
 		return c.String(http.StatusOK, "OK")
@@ -133,12 +135,15 @@ func (suite *middlewareTestSuite) TestCacheHit() {
 	hdr := http.Header{}
 	hdr.Set("X-RESP", "OK")
 	resp := NewResponse(201, hdr, []byte("OK"))
-	adapter.On("Get", key).Return(resp, nil)
+	b, err := suite.enc.Marshal(resp)
+	suite.NoError(err)
+	adapter.On("Get", key).Return(b, nil)
 
 	middleware := CacheWithConfig(CacheConfig{
 		Adapter: adapter,
+		Encoder: suite.enc,
 	})
-	err := middleware(suite.handler)(c)
+	err = middleware(suite.handler)(c)
 	suite.NoError(err)
 
 	// should cache statusCode, headers and body
@@ -180,7 +185,7 @@ func (suite *middlewareTestSuite) TestGetCacheError() {
 
 	key := "cache-GET-" + url
 	adapter := createDumpAdapter("")
-	adapter.On("Get", key).Return((*Response)(nil), errors.New("GetCacheError"))
+	adapter.On("Get", key).Return(([]byte)(nil), errors.New("GetCacheError"))
 	adapter.On("Set", key, mock.Anything, mock.Anything).Return(nil)
 
 	middleware := CacheWithConfig(CacheConfig{

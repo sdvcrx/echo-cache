@@ -1,12 +1,12 @@
 package cache
 
 import (
-	"encoding/json"
 	"log"
 	"time"
 
 	"context"
 
+	"github.com/vmihailenco/msgpack/v5"
 	bolt "go.etcd.io/bbolt"
 )
 
@@ -20,8 +20,8 @@ type BoltAdapter struct {
 var _ CacheAdapter = &BoltAdapter{}
 
 type expirableMessage struct {
-	Response  *Response `json:"response"`
-	ExpiredAt time.Time `json:"expired_at"`
+	Value     []byte
+	ExpiredAt time.Time
 }
 
 func (r *expirableMessage) Expired() bool {
@@ -81,7 +81,7 @@ func (ba *BoltAdapter) cleanupExpired() error {
 	b := tx.Bucket(ba.bucket)
 	err = b.ForEach(func(k, v []byte) error {
 		var msg expirableMessage
-		err := json.Unmarshal(v, &msg)
+		err := msgpack.Unmarshal(v, &msg)
 		if err != nil {
 			return err
 		}
@@ -96,7 +96,7 @@ func (ba *BoltAdapter) cleanupExpired() error {
 	return tx.Commit()
 }
 
-func (ba *BoltAdapter) Get(key string) (*Response, error) {
+func (ba *BoltAdapter) Get(key string) ([]byte, error) {
 	var msg expirableMessage
 
 	err := ba.db.View(func(t *bolt.Tx) error {
@@ -106,29 +106,29 @@ func (ba *BoltAdapter) Get(key string) (*Response, error) {
 			return nil
 		}
 
-		err := json.Unmarshal(val, &msg)
+		err := msgpack.Unmarshal(val, &msg)
 		if err != nil {
 			return err
 		}
 
 		if msg.Expired() {
-			msg.Response = nil
+			msg.Value = nil
 		}
 
 		return nil
 	})
 
-	return msg.Response, err
+	return msg.Value, err
 }
 
-func (ba *BoltAdapter) Set(key string, response *Response, ttl time.Duration) error {
+func (ba *BoltAdapter) Set(key string, val []byte, ttl time.Duration) error {
 	msg := expirableMessage{
-		Response:  response,
+		Value:     val,
 		ExpiredAt: time.Now().Add(ttl),
 	}
 	return ba.db.Batch(func(t *bolt.Tx) error {
 		b := t.Bucket(ba.bucket)
-		msgb, err := json.Marshal(msg)
+		msgb, err := msgpack.Marshal(msg)
 		if err != nil {
 			return err
 		}

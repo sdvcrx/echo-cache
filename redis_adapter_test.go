@@ -16,17 +16,14 @@ func TestCacheRedisAdapter(t *testing.T) {
 		client: db,
 	}
 	key := "cacheKey"
-	body := []byte("OK")
-	resp := NewResponse(200, nil, body)
-	respb, errm := resp.Marshal()
-	assert.NoError(t, errm)
+	val := "OK"
+	valByte := []byte(val)
 
 	t.Run("Get success", func(t *testing.T) {
-		mock.ExpectGet(key).SetVal(string(respb))
+		mock.ExpectGet(key).SetVal(val)
 		res, err := ra.Get(key)
 		assert.NoError(t, err)
-		assert.Equal(t, 200, res.StatusCode)
-		assert.Equal(t, body, res.Body)
+		assert.Equal(t, valByte, res)
 		mock.ExpectationsWereMet()
 	})
 
@@ -50,14 +47,14 @@ func TestCacheRedisAdapter(t *testing.T) {
 
 	t.Run("Set success", func(t *testing.T) {
 		ttl := time.Minute
-		mock.ExpectSet(key, respb, ttl).SetVal("")
-		err := ra.Set(key, resp, ttl)
+		mock.ExpectSet(key, valByte, ttl).SetVal("")
+		err := ra.Set(key, valByte, ttl)
 		assert.NoError(t, err)
 	})
 
 	t.Run("Set error", func(t *testing.T) {
-		mock.ExpectSet(key, respb, 0).SetErr(redis.ErrClosed)
-		err := ra.Set(key, resp, 0)
+		mock.ExpectSet(key, valByte, 0).SetErr(redis.ErrClosed)
+		err := ra.Set(key, valByte, 0)
 		assert.ErrorIs(t, err, redis.ErrClosed)
 	})
 }
@@ -72,10 +69,10 @@ func TestRedisAdapterWithRealServer(t *testing.T) {
 	}
 	key := "cacheKey"
 	body := []byte("OK")
-	resp := NewResponse(200, nil, body)
+	// resp := NewResponse(200, nil, body)
 
 	t.Run("Set", func(t *testing.T) {
-		err := ra.Set(key, resp, time.Minute)
+		err := ra.Set(key, body, time.Minute)
 		assert.NoError(t, err)
 	})
 
@@ -87,10 +84,10 @@ func TestRedisAdapterWithRealServer(t *testing.T) {
 
 	t.Run("Set with TTL", func(t *testing.T) {
 		ttl := time.Second
-		err := ra.Set(key, resp, ttl)
+		err := ra.Set(key, body, ttl)
 		assert.NoError(t, err)
 
-		time.Sleep(2*ttl)
+		time.Sleep(2 * ttl)
 		resp, err := ra.Get(key)
 		assert.NoError(t, err)
 		assert.Nil(t, resp)

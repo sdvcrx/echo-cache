@@ -52,8 +52,8 @@ func TestCacheSQLAdapter(t *testing.T) {
 			body := []byte("OK")
 
 			t.Run("Set", func(t *testing.T) {
-				resp := NewResponse(200, nil, body)
-				err := sa.Set(key, resp, time.Minute)
+				// resp := NewResponse(200, nil, body)
+				err := sa.Set(key, body, time.Minute)
 				assert.NoError(t, err)
 			})
 
@@ -61,41 +61,41 @@ func TestCacheSQLAdapter(t *testing.T) {
 				resp, err := sa.Get(key)
 				assert.NoError(t, err)
 				assert.NotNil(t, resp)
-				assert.Equal(t, 200, resp.StatusCode)
+				assert.Equal(t, body, resp)
 			})
 
 			t.Run("Set override", func(t *testing.T) {
-				resp := NewResponse(201, nil, []byte("NOT OK"))
-				err := sa.Set(key, resp, time.Minute)
+				// resp := NewResponse(201, nil, []byte("NOT OK"))
+				valNew := []byte("NOT OK")
+				err := sa.Set(key, valNew, time.Minute)
 				assert.NoError(t, err)
 
-				currentResp, err := sa.Get(key)
+				res, err := sa.Get(key)
 				if assert.NoError(t, err) {
-					assert.NotNil(t, currentResp)
-					assert.Equal(t, resp.StatusCode, currentResp.StatusCode)
-					assert.Equal(t, resp.Body, currentResp.Body)
+					assert.NotNil(t, res)
+					assert.Equal(t, valNew, res)
 				}
 			})
 
 			t.Run("Set with TTL", func(t *testing.T) {
 				ttl := time.Second
-				resp := NewResponse(201, nil, []byte("NOT OK"))
-				err := sa.Set(key, resp, ttl)
+				// resp := NewResponse(201, nil, []byte("NOT OK"))
+				err := sa.Set(key, body, ttl)
 				assert.NoError(t, err)
 
 				time.Sleep(ttl / 2)
 				// still valid
-				currentResp, err := sa.Get(key)
+				res, err := sa.Get(key)
 				if assert.NoError(t, err) {
-					assert.NotNil(t, currentResp)
-					assert.Equal(t, resp, currentResp)
+					assert.NotNil(t, res)
+					assert.Equal(t, body, res)
 				}
 
 				// expired
 				time.Sleep(ttl)
-				currentResp, err = sa.Get(key)
+				res, err = sa.Get(key)
 				if assert.NoError(t, err) {
-					assert.Nil(t, currentResp)
+					assert.Nil(t, res)
 				}
 			})
 		})

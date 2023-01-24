@@ -163,7 +163,7 @@ func (sa *SQLAdapter) startCleanExpired() {
 	}()
 }
 
-func (sa *SQLAdapter) Get(key string) (*Response, error) {
+func (sa *SQLAdapter) Get(key string) ([]byte, error) {
 	b := []byte{}
 	err := sa.stmtGet.QueryRowContext(sa.Ctx, key, time.Now().UnixMilli()).Scan(&b)
 	if err != nil {
@@ -172,15 +172,10 @@ func (sa *SQLAdapter) Get(key string) (*Response, error) {
 		}
 		return nil, err
 	}
-	return NewResponseFromJSON(b)
+	return b, nil
 }
 
-func (sa *SQLAdapter) Set(key string, response *Response, ttl time.Duration) error {
-	b, err := response.Marshal()
-	if err != nil {
-		return err
-	}
-
-	_, err = sa.stmtSet.ExecContext(sa.Ctx, key, b, time.Now().Add(ttl).UnixMilli())
+func (sa *SQLAdapter) Set(key string, val []byte, ttl time.Duration) error {
+	_, err := sa.stmtSet.ExecContext(sa.Ctx, key, val, time.Now().Add(ttl).UnixMilli())
 	return err
 }

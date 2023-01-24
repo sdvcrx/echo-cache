@@ -42,6 +42,7 @@ type CacheConfig struct {
     CacheKey      CacheKeyFunc
     CacheDuration time.Duration
     Adapter       CacheAdapter
+    Encoder       Encoder
 }
 ```
 

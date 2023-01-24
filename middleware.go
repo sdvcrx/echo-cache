@@ -23,6 +23,7 @@ type CacheConfig struct {
 	CacheKey      CacheKeyFunc
 	CacheDuration time.Duration
 	Adapter       CacheAdapter
+	Encoder       Encoder
 }
 
 func DefaultCacheKey(prefix string, req *http.Request) string {
@@ -86,6 +87,9 @@ func CacheWithConfig(config CacheConfig) echo.MiddlewareFunc {
 		// Default Adapter
 		config.Adapter = NewMemoryAdapter(100, TYPE_LRU)
 	}
+	if config.Encoder == nil {
+		config.Encoder = &MsgpackEncoder{}
+	}
 
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
@@ -97,11 +101,16 @@ func CacheWithConfig(config CacheConfig) echo.MiddlewareFunc {
 			req := c.Request()
 			key := config.CacheKey(config.CachePrefix, req)
 
-			cachedResponse, err := config.Adapter.Get(key)
+			cached, err := config.Adapter.Get(key)
 
 			if err != nil {
 				c.Logger().Warnf("Failed to get cache, err=%s", err)
-			} else if cachedResponse != nil {
+			} else if cached != nil {
+				var cachedResponse Response
+				if err := config.Encoder.Unmarshal(cached, &cachedResponse); err != nil {
+					return err
+				}
+
 				for k, v := range cachedResponse.Headers {
 					c.Response().Header().Set(k, strings.Join(v, ","))
 				}
@@ -128,7 +137,11 @@ func CacheWithConfig(config CacheConfig) echo.MiddlewareFunc {
 			}
 			// cache it here
 			resp := NewResponse(writer.statusCode, writer.Header(), resBody.Bytes())
-			if err = config.Adapter.Set(key, resp, config.CacheDuration); err != nil {
+			b, err := config.Encoder.Marshal(resp)
+			if err != nil {
+				return err
+			}
+			if err = config.Adapter.Set(key, b, config.CacheDuration); err != nil {
 				c.Logger().Warnf("Failed to save cache, key=%s err=%s", key, err)
 			}
 			return nil

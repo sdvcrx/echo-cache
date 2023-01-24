@@ -47,7 +47,7 @@ func NewMemoryAdapter(size int, memoryType MemoryType) CacheAdapter {
 	}
 }
 
-func (ma *MemoryAdapter) Get(key string) (*Response, error) {
+func (ma *MemoryAdapter) Get(key string) ([]byte, error) {
 	resp, err := ma.gc.Get(key)
 	if err != nil {
 		if errors.Is(err, gcache.KeyNotFoundError) {
@@ -55,12 +55,12 @@ func (ma *MemoryAdapter) Get(key string) (*Response, error) {
 		}
 		return nil, err
 	}
-	return resp.(*Response), err
+	return resp.([]byte), err
 }
 
-func (ma *MemoryAdapter) Set(key string, response *Response, ttl time.Duration) error {
+func (ma *MemoryAdapter) Set(key string, val []byte, ttl time.Duration) error {
 	if ttl == 0 {
-		return ma.gc.Set(key, response)
+		return ma.gc.Set(key, val)
 	}
-	return ma.gc.SetWithExpire(key, response, ttl)
+	return ma.gc.SetWithExpire(key, val, ttl)
 }
