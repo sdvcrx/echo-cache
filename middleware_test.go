@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 
 	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 )
@@ -62,24 +63,47 @@ func (suite *middlewareTestSuite) testCacheKey(prefix string, req *http.Request)
 	return "key"
 }
 
-func (suite *middlewareTestSuite) TestDefaultSkipper() {
-	req := httptest.NewRequest(http.MethodPost, "/cache", nil)
-	rec := httptest.NewRecorder()
-	c := suite.e.NewContext(req, rec)
-	suite.Equal(true, DefaultCacheSkipper(c))
+func (suite *middlewareTestSuite) testSkipper(
+	skipperFunc middleware.Skipper,
+	c echo.Context,
+	expected bool,
+) {
+	suite.Equal(expected, skipperFunc(c))
 
 	adapter := createDumpAdapter("key")
 
 	middleware := CacheWithConfig(CacheConfig{
+		Skipper:  skipperFunc,
 		Adapter:  adapter,
 		CacheKey: suite.testCacheKey,
 	})
 	err := middleware(suite.handler)(c)
 	suite.NoError(err)
 
-	// should skip cache middleware
-	adapter.AssertNotCalled(suite.T(), "Get", mock.Anything)
-	adapter.AssertNotCalled(suite.T(), "Set", mock.Anything, mock.Anything, mock.Anything)
+	if expected {
+		// should skip cache middleware
+		adapter.AssertNotCalled(suite.T(), "Get", mock.Anything)
+		adapter.AssertNotCalled(suite.T(), "Set", mock.Anything, mock.Anything, mock.Anything)
+	}
+}
+
+func (suite *middlewareTestSuite) TestDefaultSkipper() {
+	suite.Run("Skip POST req", func() {
+		req := httptest.NewRequest(http.MethodPost, "/cache", nil)
+		rec := httptest.NewRecorder()
+		c := suite.e.NewContext(req, rec)
+
+		suite.testSkipper(DefaultCacheSkipper, c, true)
+	})
+
+	suite.Run("Skip req with range header", func() {
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req.Header.Set("Range", "bytes=0-1023")
+		rec := httptest.NewRecorder()
+		c := suite.e.NewContext(req, rec)
+
+		suite.testSkipper(DefaultCacheSkipper, c, true)
+	})
 }
 
 func (suite *middlewareTestSuite) TestSkipper() {
@@ -88,21 +112,8 @@ func (suite *middlewareTestSuite) TestSkipper() {
 		return c.Request().URL.Path != path
 	}
 	c, _ := createEchoContext(suite.e, "/dont-cache-me")
-	suite.Equal(true, skipper(c))
 
-	adapter := createDumpAdapter("key")
-
-	middleware := CacheWithConfig(CacheConfig{
-		Skipper:  skipper,
-		Adapter:  adapter,
-		CacheKey: suite.testCacheKey,
-	})
-	err := middleware(suite.handler)(c)
-	suite.NoError(err)
-
-	// should skip cache middleware
-	adapter.AssertNotCalled(suite.T(), "Get", mock.Anything)
-	adapter.AssertNotCalled(suite.T(), "Set", mock.Anything, mock.Anything, mock.Anything)
+	suite.testSkipper(skipper, c, true)
 }
 
 func (suite *middlewareTestSuite) TestCachePrefix() {

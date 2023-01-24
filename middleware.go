@@ -30,10 +30,19 @@ func DefaultCacheKey(prefix string, req *http.Request) string {
 	return fmt.Sprintf("%s-%s-%s", prefix, req.Method, req.URL)
 }
 
-// Only cache HTTP GET and HEAD method by default.
+// Cache default skipper only cache GET/HEAD method
+// and headers not contain `Range`
 func DefaultCacheSkipper(c echo.Context) bool {
 	method := c.Request().Method
-	return method != http.MethodGet && method != http.MethodHead
+	// Request must use GET or HEAD method
+	if method != http.MethodGet && method != http.MethodHead {
+		return true
+	}
+	// Request must not contain the `Range` header
+	if c.Request().Header.Get("range") != "" {
+		return true
+	}
+	return false
 }
 
 var (
