@@ -116,6 +116,67 @@ func (suite *middlewareTestSuite) TestSkipper() {
 	suite.testSkipper(skipper, c, true)
 }
 
+func (suite *middlewareTestSuite) testCanCacheResponse(
+	skipperFunc middleware.Skipper,
+	expected bool,
+	handler echo.HandlerFunc,
+) {
+	c, _ := createEchoContext(suite.e, "/cache-me")
+
+	adapter := createDumpAdapter("key")
+
+	middleware := CacheWithConfig(CacheConfig{
+		CanCacheResponse: skipperFunc,
+		Adapter:          adapter,
+		CacheKey:         suite.testCacheKey,
+	})
+	err := middleware(handler)(c)
+
+	suite.NoError(err)
+	suite.Equal(expected, skipperFunc(c))
+
+	if expected {
+		adapter.AssertCalled(suite.T(), "Get", mock.Anything)
+		// should skip cache response
+		adapter.AssertNotCalled(suite.T(), "Set", mock.Anything, mock.Anything, mock.Anything)
+	}
+}
+
+func (suite *middlewareTestSuite) TestDefaultCanCacheResponse() {
+	suite.Run("Can cache response", func() {
+		handler := func(c echo.Context) error {
+			return c.String(http.StatusOK, "OK")
+		}
+		suite.testCanCacheResponse(DefaultCanCacheResponseSkipper, false, handler)
+	})
+
+	suite.Run("Skip response error", func() {
+		handler := func(c echo.Context) error {
+			return c.String(http.StatusBadRequest, "params missing")
+		}
+		suite.testCanCacheResponse(DefaultCanCacheResponseSkipper, true, handler)
+	})
+
+	suite.Run("Skip set-cookie header", func() {
+		handler := func(c echo.Context) error {
+			c.SetCookie(&http.Cookie{
+				Name:  "uid",
+				Value: "1",
+			})
+			return c.String(http.StatusOK, "OK")
+		}
+		suite.testCanCacheResponse(DefaultCanCacheResponseSkipper, true, handler)
+	})
+
+	suite.Run("Skip response body too large", func() {
+		handler := func(c echo.Context) error {
+			data := make([]byte, int(2e7), int(2e7))
+			return c.Blob(http.StatusOK, "application/octet-stream", data)
+		}
+		suite.testCanCacheResponse(DefaultCanCacheResponseSkipper, true, handler)
+	})
+}
+
 func (suite *middlewareTestSuite) TestCachePrefix() {
 	prefix := "[CACHE]"
 	url := "/api/resource?name=echo"

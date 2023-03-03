@@ -18,12 +18,13 @@ import (
 type CacheKeyFunc func(prefix string, req *http.Request) string
 
 type CacheConfig struct {
-	Skipper       middleware.Skipper
-	CachePrefix   string
-	CacheKey      CacheKeyFunc
-	CacheDuration time.Duration
-	Adapter       CacheAdapter
-	Encoder       Encoder
+	Skipper          middleware.Skipper
+	CanCacheResponse middleware.Skipper
+	CachePrefix      string
+	CacheKey         CacheKeyFunc
+	CacheDuration    time.Duration
+	Adapter          CacheAdapter
+	Encoder          Encoder
 }
 
 func DefaultCacheKey(prefix string, req *http.Request) string {
@@ -45,14 +46,46 @@ func DefaultCacheSkipper(c echo.Context) bool {
 	return false
 }
 
+const (
+	SizeKB int64 = 1024
+	SizeMB int64 = 1024 * SizeKB
+)
+
+// Default canCacheResponse skipper will skip response cache if:
+// - response status code not in (200, 301, 308)
+// - response headers not contains `set-cookie`
+func DefaultCanCacheResponseSkipper(c echo.Context) bool {
+	resp := c.Response()
+
+	// Response status code must be 200, 301, or 308
+	if resp.Status != http.StatusOK &&
+		resp.Status != http.StatusMovedPermanently &&
+		resp.Status != http.StatusPermanentRedirect {
+		return true
+	}
+
+	// Response must not contain the `set-cookie` header.
+	if resp.Header().Get(echo.HeaderSetCookie) != "" {
+		return true
+	}
+
+	// Response must not exceed 10MB in content length.
+	if resp.Size > 10*SizeMB {
+		return true
+	}
+
+	return false
+}
+
 var (
 	DefaultCachePrefix   = "cache"
 	DefaultCacheDuration = time.Duration(0)
 	DefaultCacheConfig   = CacheConfig{
-		Skipper:       DefaultCacheSkipper,
-		CachePrefix:   DefaultCachePrefix,
-		CacheDuration: DefaultCacheDuration,
-		CacheKey:      DefaultCacheKey,
+		Skipper:          DefaultCacheSkipper,
+		CanCacheResponse: DefaultCanCacheResponseSkipper,
+		CachePrefix:      DefaultCachePrefix,
+		CacheDuration:    DefaultCacheDuration,
+		CacheKey:         DefaultCacheKey,
 	}
 )
 
@@ -82,6 +115,9 @@ func (w *bodyDumpResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 func CacheWithConfig(config CacheConfig) echo.MiddlewareFunc {
 	if config.Skipper == nil {
 		config.Skipper = DefaultCacheConfig.Skipper
+	}
+	if config.CanCacheResponse == nil {
+		config.CanCacheResponse = DefaultCacheConfig.CanCacheResponse
 	}
 	if config.CachePrefix == "" {
 		config.CachePrefix = DefaultCachePrefix
@@ -141,7 +177,8 @@ func CacheWithConfig(config CacheConfig) echo.MiddlewareFunc {
 
 			// don't cache status code != 200
 			// TODO add canCache
-			if c.Response().Status >= 400 {
+			// https://vercel.com/docs/concepts/functions/edge-functions/edge-caching#what-is-cached
+			if config.CanCacheResponse(c) {
 				return nil
 			}
 			// cache it here

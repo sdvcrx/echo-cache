@@ -37,12 +37,13 @@ Configuration:
 
 ```go
 type CacheConfig struct {
-    Skipper       middleware.Skipper
-    CachePrefix   string
-    CacheKey      CacheKeyFunc
-    CacheDuration time.Duration
-    Adapter       CacheAdapter
-    Encoder       Encoder
+    Skipper          middleware.Skipper
+    CanCacheResponse middleware.Skipper
+    CachePrefix      string
+    CacheKey         CacheKeyFunc
+    CacheDuration    time.Duration
+    Adapter          CacheAdapter
+    Encoder          Encoder
 }
 ```
 
