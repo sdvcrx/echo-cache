@@ -25,6 +25,7 @@ type CacheConfig struct {
 	CacheDuration    time.Duration
 	Adapter          CacheAdapter
 	Encoder          Encoder
+	Metrics          Metrics
 }
 
 func DefaultCacheKey(prefix string, req *http.Request) string {
@@ -135,24 +136,31 @@ func CacheWithConfig(config CacheConfig) echo.MiddlewareFunc {
 	if config.Encoder == nil {
 		config.Encoder = &MsgpackEncoder{}
 	}
+	if config.Metrics == nil {
+		config.Metrics = &dummyMetrics{}
+	}
 
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			if config.Skipper(c) {
+				config.Metrics.CacheMisses()
 				return next(c)
 			}
 
 			// before response
+			start := time.Now()
 			req := c.Request()
 			key := config.CacheKey(config.CachePrefix, req)
 
 			cached, err := config.Adapter.Get(key)
 
 			if err != nil {
+				config.Metrics.CacheError()
 				c.Logger().Errorf("[echo-cache] Failed to get cache, err=%s", err)
 			} else if cached != nil {
 				var cachedResponse Response
 				if err := config.Encoder.Unmarshal(cached, &cachedResponse); err != nil {
+					config.Metrics.CacheError()
 					c.Logger().Errorf("[echo-cache] Failed to unmarshal response, err=%s", err)
 					return nil
 				}
@@ -165,8 +173,12 @@ func CacheWithConfig(config CacheConfig) echo.MiddlewareFunc {
 				if err != nil {
 					c.Logger().Errorf("[echo-cache] Failed to write response, err=%s", err)
 				}
+				config.Metrics.CacheHits()
+				config.Metrics.CacheLatency(float64(time.Since(start).Seconds()))
 				return nil
 			}
+
+			config.Metrics.CacheMisses()
 
 			// copy from https://github.com/labstack/echo/blob/master/middleware/body_dump.go
 			resBody := new(bytes.Buffer)
@@ -192,6 +204,7 @@ func CacheWithConfig(config CacheConfig) echo.MiddlewareFunc {
 				c.Logger().Errorf("[echo-cache] Failed to marshal response, err=%s", err)
 				return nil
 			}
+			config.Metrics.CacheSize(float64(len(b)))
 			if err = config.Adapter.Set(key, b, config.CacheDuration); err != nil {
 				c.Logger().Errorf("[echo-cache] Failed to save cache, key=%s err=%s", key, err)
 			}
