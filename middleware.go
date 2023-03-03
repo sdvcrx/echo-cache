@@ -149,11 +149,12 @@ func CacheWithConfig(config CacheConfig) echo.MiddlewareFunc {
 			cached, err := config.Adapter.Get(key)
 
 			if err != nil {
-				c.Logger().Warnf("Failed to get cache, err=%s", err)
+				c.Logger().Errorf("[echo-cache] Failed to get cache, err=%s", err)
 			} else if cached != nil {
 				var cachedResponse Response
 				if err := config.Encoder.Unmarshal(cached, &cachedResponse); err != nil {
-					return err
+					c.Logger().Errorf("[echo-cache] Failed to unmarshal response, err=%s", err)
+					return nil
 				}
 
 				for k, v := range cachedResponse.Headers {
@@ -161,7 +162,10 @@ func CacheWithConfig(config CacheConfig) echo.MiddlewareFunc {
 				}
 				c.Response().WriteHeader(cachedResponse.StatusCode)
 				_, err = c.Response().Write(cachedResponse.Body)
-				return err
+				if err != nil {
+					c.Logger().Errorf("[echo-cache] Failed to write response, err=%s", err)
+				}
+				return nil
 			}
 
 			// copy from https://github.com/labstack/echo/blob/master/middleware/body_dump.go
@@ -185,10 +189,11 @@ func CacheWithConfig(config CacheConfig) echo.MiddlewareFunc {
 			resp := NewResponse(writer.statusCode, writer.Header(), resBody.Bytes())
 			b, err := config.Encoder.Marshal(resp)
 			if err != nil {
-				return err
+				c.Logger().Errorf("[echo-cache] Failed to marshal response, err=%s", err)
+				return nil
 			}
 			if err = config.Adapter.Set(key, b, config.CacheDuration); err != nil {
-				c.Logger().Warnf("Failed to save cache, key=%s err=%s", key, err)
+				c.Logger().Errorf("[echo-cache] Failed to save cache, key=%s err=%s", key, err)
 			}
 			return nil
 		}
