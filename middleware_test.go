@@ -170,7 +170,7 @@ func (suite *middlewareTestSuite) TestDefaultCanCacheResponse() {
 
 	suite.Run("Skip response body too large", func() {
 		handler := func(c echo.Context) error {
-			data := make([]byte, int(2e7), int(2e7))
+			data := make([]byte, int(2e7))
 			return c.Blob(http.StatusOK, "application/octet-stream", data)
 		}
 		suite.testCanCacheResponse(DefaultCanCacheResponseSkipper, true, handler)
