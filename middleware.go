@@ -9,8 +9,6 @@ import (
 	"net/http"
 	"time"
 
-	"strings"
-
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 )
@@ -165,9 +163,7 @@ func CacheWithConfig(config CacheConfig) echo.MiddlewareFunc {
 					return nil
 				}
 
-				for k, v := range cachedResponse.Headers {
-					c.Response().Header().Set(k, strings.Join(v, ","))
-				}
+				CopyMap(c.Response().Header(), cachedResponse.Headers)
 				c.Response().WriteHeader(cachedResponse.StatusCode)
 				_, err = c.Response().Write(cachedResponse.Body)
 				if err != nil {

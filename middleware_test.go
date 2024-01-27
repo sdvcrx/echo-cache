@@ -228,6 +228,35 @@ func (suite *middlewareTestSuite) TestCacheHit() {
 	adapter.AssertNotCalled(suite.T(), "Set", key, mock.Anything, mock.Anything)
 }
 
+func (suite *middlewareTestSuite) TestCacheHeader() {
+	url := "/"
+	c, rec := createEchoContext(suite.e, url)
+
+	memory := NewMemoryAdapter(10, TYPE_LRU)
+
+	headerValues := []string{"1", "2", "3"}
+
+	handler := func(c echo.Context) error {
+		for _, v := range headerValues {
+			c.Response().Header().Add("X-TEST", v)
+		}
+		return c.String(http.StatusOK, "OK")
+	}
+
+	middleware := CacheWithConfig(CacheConfig{
+		Adapter: memory,
+		Encoder: suite.enc,
+	})
+
+	for i := 0; i < 3; i++ {
+		err := middleware(handler)(c)
+		suite.NoError(err)
+
+		suite.Equal(200, rec.Code)
+		suite.Equal(headerValues, rec.Header().Values("X-TEST"))
+	}
+}
+
 func (suite *middlewareTestSuite) TestSaveHit() {
 	url := "/"
 	c, rec := createEchoContext(suite.e, url)
