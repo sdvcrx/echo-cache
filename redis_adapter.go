@@ -9,12 +9,12 @@ import (
 )
 
 type RedisAdapter struct {
-	client *redis.Client
+	client redis.UniversalClient
 }
 
-func NewRedisAdapter(opt *redis.Options) CacheAdapter {
+func NewRedisAdapter(opt *redis.UniversalOptions) CacheAdapter {
 	return &RedisAdapter{
-		client: redis.NewClient(opt),
+		client: redis.NewUniversalClient(opt),
 	}
 }
 
