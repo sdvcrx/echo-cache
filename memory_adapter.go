@@ -1,66 +1,30 @@
 package cache
 
 import (
-	"errors"
 	"time"
 
-	"github.com/bluele/gcache"
-)
-
-type MemoryType int
-
-func (m MemoryType) String() string {
-	switch m {
-	case TYPE_SIMPLE:
-		return "simple"
-	case TYPE_LRU:
-		return "lru"
-	case TYPE_LFU:
-		return "lfu"
-	case TYPE_ARC:
-		return "arc"
-	}
-	return "simple"
-}
-
-const (
-	TYPE_SIMPLE MemoryType = iota + 1
-	TYPE_LRU
-	TYPE_LFU
-	TYPE_ARC
+	"github.com/phuslu/lru"
 )
 
 type MemoryAdapter struct {
-	gc gcache.Cache
+	cache *lru.TTLCache[string, []byte]
 }
 
 var _ CacheAdapter = &MemoryAdapter{}
 
-func NewMemoryAdapter(size int, memoryType MemoryType) CacheAdapter {
-	gc := gcache.
-		New(size).
-		EvictType(memoryType.String()).
-		Build()
-
+func NewMemoryAdapter(size int) CacheAdapter {
 	return &MemoryAdapter{
-		gc: gc,
+		cache: lru.NewTTLCache[string, []byte](size),
 	}
 }
 
 func (ma *MemoryAdapter) Get(key string) ([]byte, error) {
-	resp, err := ma.gc.Get(key)
-	if err != nil {
-		if errors.Is(err, gcache.KeyNotFoundError) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	return resp.([]byte), err
+	val, _ := ma.cache.Get(key)
+
+	return val, nil
 }
 
 func (ma *MemoryAdapter) Set(key string, val []byte, ttl time.Duration) error {
-	if ttl == 0 {
-		return ma.gc.Set(key, val)
-	}
-	return ma.gc.SetWithExpire(key, val, ttl)
+	ma.cache.Set(key, val, ttl)
+	return nil
 }

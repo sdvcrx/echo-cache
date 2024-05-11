@@ -1,13 +1,13 @@
 module github.com/sdvcrx/echo-cache
 
-go 1.19
+go 1.22
 
 require (
-	github.com/bluele/gcache v0.0.2
 	github.com/go-redis/redismock/v9 v9.2.0
 	github.com/go-sql-driver/mysql v1.7.1
 	github.com/labstack/echo/v4 v4.11.4
 	github.com/lib/pq v1.10.9
+	github.com/phuslu/lru v1.0.15
 	github.com/redis/go-redis/v9 v9.4.0
 	github.com/stretchr/testify v1.8.4
 	github.com/vmihailenco/msgpack/v5 v5.4.1

@@ -232,7 +232,7 @@ func (suite *middlewareTestSuite) TestCacheHeader() {
 	url := "/"
 	c, rec := createEchoContext(suite.e, url)
 
-	memory := NewMemoryAdapter(10, TYPE_LRU)
+	memory := NewMemoryAdapter(10)
 
 	headerValues := []string{"1", "2", "3"}
 

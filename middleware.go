@@ -129,7 +129,7 @@ func CacheWithConfig(config CacheConfig) echo.MiddlewareFunc {
 	}
 	if config.Adapter == nil {
 		// Default Adapter
-		config.Adapter = NewMemoryAdapter(100, TYPE_LRU)
+		config.Adapter = NewMemoryAdapter(8192)
 	}
 	if config.Encoder == nil {
 		config.Encoder = &MsgpackEncoder{}
