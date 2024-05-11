@@ -1,4 +1,4 @@
-package cache
+package redisstore
 
 import (
 	"context"
@@ -10,9 +10,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestCacheRedisAdapter(t *testing.T) {
+func TestCacheRedisStore(t *testing.T) {
 	db, mock := redismock.NewClientMock()
-	ra := &RedisAdapter{
+	ra := &RedisStore{
 		client: db,
 	}
 	key := "cacheKey"
@@ -59,12 +59,12 @@ func TestCacheRedisAdapter(t *testing.T) {
 	})
 }
 
-func TestRedisAdapterWithRealServer(t *testing.T) {
+func TestRedisStoreWithRealServer(t *testing.T) {
 	db := redis.NewClient(&redis.Options{})
 	if err := db.Ping(context.Background()).Err(); err != nil {
 		t.Skip("Cannot connect to redis server, skip test redis with real server")
 	}
-	ra := &RedisAdapter{
+	ra := &RedisStore{
 		client: db,
 	}
 	key := "cacheKey"

@@ -5,12 +5,15 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"net/http"
 	"time"
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+	"github.com/sdvcrx/echo-cache/store"
+	memorystore "github.com/sdvcrx/echo-cache/store/memory"
 )
 
 type CacheKeyFunc func(prefix string, req *http.Request) string
@@ -21,7 +24,7 @@ type CacheConfig struct {
 	CachePrefix      string
 	CacheKey         CacheKeyFunc
 	CacheDuration    time.Duration
-	Adapter          CacheAdapter
+	Store            store.Store
 	Encoder          Encoder
 	Metrics          Metrics
 }
@@ -127,9 +130,8 @@ func CacheWithConfig(config CacheConfig) echo.MiddlewareFunc {
 	if config.CacheDuration == 0 {
 		config.CacheDuration = DefaultCacheDuration
 	}
-	if config.Adapter == nil {
-		// Default Adapter
-		config.Adapter = NewMemoryAdapter(8192)
+	if config.Store == nil {
+		config.Store = memorystore.New(1024)
 	}
 	if config.Encoder == nil {
 		config.Encoder = &MsgpackEncoder{}
@@ -150,7 +152,7 @@ func CacheWithConfig(config CacheConfig) echo.MiddlewareFunc {
 			req := c.Request()
 			key := config.CacheKey(config.CachePrefix, req)
 
-			cached, err := config.Adapter.Get(key)
+			cached, err := config.Store.Get(key)
 
 			if err != nil {
 				config.Metrics.CacheError()
@@ -163,7 +165,7 @@ func CacheWithConfig(config CacheConfig) echo.MiddlewareFunc {
 					return nil
 				}
 
-				CopyMap(c.Response().Header(), cachedResponse.Headers)
+				maps.Copy(c.Response().Header(), cachedResponse.Headers)
 				c.Response().WriteHeader(cachedResponse.StatusCode)
 				_, err = c.Response().Write(cachedResponse.Body)
 				if err != nil {
@@ -201,7 +203,7 @@ func CacheWithConfig(config CacheConfig) echo.MiddlewareFunc {
 				return nil
 			}
 			config.Metrics.CacheSize(float64(len(b)))
-			if err = config.Adapter.Set(key, b, config.CacheDuration); err != nil {
+			if err = config.Store.Set(key, b, config.CacheDuration); err != nil {
 				c.Logger().Errorf("[echo-cache] Failed to save cache, key=%s err=%s", key, err)
 			}
 			return nil

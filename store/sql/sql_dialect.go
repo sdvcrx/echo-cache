@@ -1,8 +1,8 @@
-package cache
+package sqlstore
 
-type dbName int
+type DBName int
 
-func (n dbName) String() string {
+func (n DBName) String() string {
 	switch n {
 	case PostgreSQL:
 		return "postgresql"
@@ -40,7 +40,7 @@ var (
 	}
 )
 
-func getDialect(name dbName) *sqlDialect {
+func getDialect(name DBName) *sqlDialect {
 	switch name {
 	case SQLite:
 		return sqliteDialect

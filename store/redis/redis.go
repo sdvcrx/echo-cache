@@ -1,4 +1,4 @@
-package cache
+package redisstore
 
 import (
 	"context"
@@ -6,21 +6,22 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
+	"github.com/sdvcrx/echo-cache/store"
 )
 
-type RedisAdapter struct {
+type RedisStore struct {
 	client redis.UniversalClient
 }
 
-func NewRedisAdapter(opt *redis.UniversalOptions) CacheAdapter {
-	return &RedisAdapter{
+func New(opt *redis.UniversalOptions) store.Store {
+	return &RedisStore{
 		client: redis.NewUniversalClient(opt),
 	}
 }
 
-var _ CacheAdapter = &RedisAdapter{}
+var _ store.Store = (*RedisStore)(nil)
 
-func (ra *RedisAdapter) Get(key string) ([]byte, error) {
+func (ra *RedisStore) Get(key string) ([]byte, error) {
 	val, err := ra.client.Get(context.Background(), key).Bytes()
 	if err != nil {
 		// no data
@@ -32,7 +33,7 @@ func (ra *RedisAdapter) Get(key string) ([]byte, error) {
 	return val, nil
 }
 
-func (ra *RedisAdapter) Set(key string, val []byte, ttl time.Duration) error {
+func (ra *RedisStore) Set(key string, val []byte, ttl time.Duration) error {
 	_, err := ra.client.Set(context.Background(), key, val, ttl).Result()
 	return err
 }

@@ -2,6 +2,7 @@ package cache
 
 import (
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -20,27 +21,44 @@ func createEchoContext(e *echo.Echo, url string) (echo.Context, *httptest.Respon
 	return e.NewContext(req, rec), rec
 }
 
-type dumyAdapter struct {
+type dumyStore struct {
 	mock.Mock
 }
 
-func (da *dumyAdapter) Get(key string) ([]byte, error) {
+func (da *dumyStore) Get(key string) ([]byte, error) {
 	args := da.Called(key)
 	return args.Get(0).([]byte), args.Error(1)
 }
 
-func (da *dumyAdapter) Set(key string, val []byte, ttl time.Duration) error {
+func (da *dumyStore) Set(key string, val []byte, ttl time.Duration) error {
 	args := da.Called(key, val, ttl)
 	return args.Error(0)
 }
 
-func createDumpAdapter(cacheKey string) *dumyAdapter {
-	adapter := new(dumyAdapter)
-	if cacheKey != "" {
-		adapter.On("Get", cacheKey).Return(([]byte)(nil), nil)
-		adapter.On("Set", cacheKey, mock.Anything, mock.Anything).Return(nil)
+type memoryStore struct {
+	data sync.Map
+}
+
+func (m *memoryStore) Get(key string) ([]byte, error) {
+	v, _ := m.data.Load(key)
+	if v == nil {
+		return nil, nil
 	}
-	return adapter
+	return v.([]byte), nil
+}
+
+func (m *memoryStore) Set(key string, val []byte, ttl time.Duration) error {
+	m.data.Store(key, val)
+	return nil
+}
+
+func createDumpStore(cacheKey string) *dumyStore {
+	store := new(dumyStore)
+	if cacheKey != "" {
+		store.On("Get", cacheKey).Return(([]byte)(nil), nil)
+		store.On("Set", cacheKey, mock.Anything, mock.Anything).Return(nil)
+	}
+	return store
 }
 
 type middlewareTestSuite struct {
@@ -70,11 +88,11 @@ func (suite *middlewareTestSuite) testSkipper(
 ) {
 	suite.Equal(expected, skipperFunc(c))
 
-	adapter := createDumpAdapter("key")
+	store := createDumpStore("key")
 
 	middleware := CacheWithConfig(CacheConfig{
 		Skipper:  skipperFunc,
-		Adapter:  adapter,
+		Store:    store,
 		CacheKey: suite.testCacheKey,
 	})
 	err := middleware(suite.handler)(c)
@@ -82,8 +100,8 @@ func (suite *middlewareTestSuite) testSkipper(
 
 	if expected {
 		// should skip cache middleware
-		adapter.AssertNotCalled(suite.T(), "Get", mock.Anything)
-		adapter.AssertNotCalled(suite.T(), "Set", mock.Anything, mock.Anything, mock.Anything)
+		store.AssertNotCalled(suite.T(), "Get", mock.Anything)
+		store.AssertNotCalled(suite.T(), "Set", mock.Anything, mock.Anything, mock.Anything)
 	}
 }
 
@@ -123,11 +141,11 @@ func (suite *middlewareTestSuite) testCanCacheResponse(
 ) {
 	c, _ := createEchoContext(suite.e, "/cache-me")
 
-	adapter := createDumpAdapter("key")
+	store := createDumpStore("key")
 
 	middleware := CacheWithConfig(CacheConfig{
 		CanCacheResponse: skipperFunc,
-		Adapter:          adapter,
+		Store:            store,
 		CacheKey:         suite.testCacheKey,
 	})
 	err := middleware(handler)(c)
@@ -136,9 +154,9 @@ func (suite *middlewareTestSuite) testCanCacheResponse(
 	suite.Equal(expected, skipperFunc(c))
 
 	if expected {
-		adapter.AssertCalled(suite.T(), "Get", mock.Anything)
+		store.AssertCalled(suite.T(), "Get", mock.Anything)
 		// should skip cache response
-		adapter.AssertNotCalled(suite.T(), "Set", mock.Anything, mock.Anything, mock.Anything)
+		store.AssertNotCalled(suite.T(), "Set", mock.Anything, mock.Anything, mock.Anything)
 	}
 }
 
@@ -183,18 +201,18 @@ func (suite *middlewareTestSuite) TestCachePrefix() {
 	c, _ := createEchoContext(suite.e, url)
 
 	key := prefix + "-GET-" + url
-	adapter := createDumpAdapter(key)
+	store := createDumpStore(key)
 
 	middleware := CacheWithConfig(CacheConfig{
-		Adapter:     adapter,
+		Store:       store,
 		CachePrefix: prefix,
 	})
 	err := middleware(suite.handler)(c)
 	suite.NoError(err)
 
 	// should call cache middleware with `key` as cache key
-	adapter.AssertCalled(suite.T(), "Get", key)
-	adapter.AssertCalled(suite.T(), "Set", key, mock.Anything, mock.Anything)
+	store.AssertCalled(suite.T(), "Get", key)
+	store.AssertCalled(suite.T(), "Set", key, mock.Anything, mock.Anything)
 }
 
 func (suite *middlewareTestSuite) TestCacheHit() {
@@ -202,17 +220,17 @@ func (suite *middlewareTestSuite) TestCacheHit() {
 	c, rec := createEchoContext(suite.e, url)
 
 	key := "cache-GET-" + url
-	adapter := createDumpAdapter("")
+	store := createDumpStore("")
 	// mock data
 	hdr := http.Header{}
 	hdr.Set("X-RESP", "OK")
 	resp := NewResponse(201, hdr, []byte("OK"))
 	b, err := suite.enc.Marshal(resp)
 	suite.NoError(err)
-	adapter.On("Get", key).Return(b, nil)
+	store.On("Get", key).Return(b, nil)
 
 	middleware := CacheWithConfig(CacheConfig{
-		Adapter: adapter,
+		Store:   store,
 		Encoder: suite.enc,
 	})
 	err = middleware(suite.handler)(c)
@@ -224,15 +242,15 @@ func (suite *middlewareTestSuite) TestCacheHit() {
 	suite.Equal("OK", rec.Body.String())
 
 	// should hit cache
-	adapter.AssertCalled(suite.T(), "Get", key)
-	adapter.AssertNotCalled(suite.T(), "Set", key, mock.Anything, mock.Anything)
+	store.AssertCalled(suite.T(), "Get", key)
+	store.AssertNotCalled(suite.T(), "Set", key, mock.Anything, mock.Anything)
 }
 
 func (suite *middlewareTestSuite) TestCacheHeader() {
 	url := "/"
 	c, rec := createEchoContext(suite.e, url)
 
-	memory := NewMemoryAdapter(10)
+	store := &memoryStore{}
 
 	headerValues := []string{"1", "2", "3"}
 
@@ -244,7 +262,7 @@ func (suite *middlewareTestSuite) TestCacheHeader() {
 	}
 
 	middleware := CacheWithConfig(CacheConfig{
-		Adapter: memory,
+		Store:   store,
 		Encoder: suite.enc,
 	})
 
@@ -262,10 +280,10 @@ func (suite *middlewareTestSuite) TestSaveHit() {
 	c, rec := createEchoContext(suite.e, url)
 
 	key := "cache-GET-" + url
-	adapter := createDumpAdapter(key)
+	store := createDumpStore(key)
 
 	middleware := CacheWithConfig(CacheConfig{
-		Adapter: adapter,
+		Store: store,
 	})
 	err := middleware(suite.handler)(c)
 	suite.NoError(err)
@@ -276,8 +294,8 @@ func (suite *middlewareTestSuite) TestSaveHit() {
 	suite.Equal("OK", rec.Body.String())
 
 	// should hit cache
-	adapter.AssertCalled(suite.T(), "Get", key)
-	adapter.AssertCalled(suite.T(), "Set", key, mock.Anything, mock.Anything)
+	store.AssertCalled(suite.T(), "Get", key)
+	store.AssertCalled(suite.T(), "Set", key, mock.Anything, mock.Anything)
 }
 
 func (suite *middlewareTestSuite) TestGetCacheError() {
@@ -285,12 +303,12 @@ func (suite *middlewareTestSuite) TestGetCacheError() {
 	c, rec := createEchoContext(suite.e, url)
 
 	key := "cache-GET-" + url
-	adapter := createDumpAdapter("")
-	adapter.On("Get", key).Return(([]byte)(nil), errors.New("GetCacheError"))
-	adapter.On("Set", key, mock.Anything, mock.Anything).Return(nil)
+	store := createDumpStore("")
+	store.On("Get", key).Return(([]byte)(nil), errors.New("GetCacheError"))
+	store.On("Set", key, mock.Anything, mock.Anything).Return(nil)
 
 	middleware := CacheWithConfig(CacheConfig{
-		Adapter: adapter,
+		Store: store,
 	})
 	err := middleware(suite.handler)(c)
 	suite.NoError(err)
@@ -301,8 +319,8 @@ func (suite *middlewareTestSuite) TestGetCacheError() {
 	suite.Equal("OK", rec.Body.String())
 
 	// should hit cache
-	adapter.AssertCalled(suite.T(), "Get", key)
-	adapter.AssertCalled(suite.T(), "Set", key, mock.Anything, mock.Anything)
+	store.AssertCalled(suite.T(), "Get", key)
+	store.AssertCalled(suite.T(), "Set", key, mock.Anything, mock.Anything)
 }
 
 func TestCacheMiddleware(t *testing.T) {

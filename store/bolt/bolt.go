@@ -1,4 +1,4 @@
-package cache
+package boltstore
 
 import (
 	"log"
@@ -6,18 +6,19 @@ import (
 
 	"context"
 
+	"github.com/sdvcrx/echo-cache/store"
 	"github.com/vmihailenco/msgpack/v5"
 	bolt "go.etcd.io/bbolt"
 )
 
-type BoltAdapter struct {
+type BoltStore struct {
 	ctx    context.Context
 	db     *bolt.DB
 	ticker *time.Ticker
 	bucket []byte
 }
 
-var _ CacheAdapter = &BoltAdapter{}
+var _ store.Store = (*BoltStore)(nil)
 
 type expirableMessage struct {
 	Value     []byte
@@ -28,7 +29,7 @@ func (r *expirableMessage) Expired() bool {
 	return time.Since(r.ExpiredAt) > 0
 }
 
-func NewBoltAdapter(ctx context.Context, path string) *BoltAdapter {
+func New(ctx context.Context, path string) *BoltStore {
 	db, err := bolt.Open(path, 0644, nil)
 	if err != nil {
 		log.Fatalln(err)
@@ -43,7 +44,7 @@ func NewBoltAdapter(ctx context.Context, path string) *BoltAdapter {
 		log.Fatalln("Failed to create bolt bucket", err)
 	}
 
-	ba := &BoltAdapter{
+	ba := &BoltStore{
 		ctx:    ctx,
 		bucket: bucket,
 		db:     db,
@@ -52,7 +53,7 @@ func NewBoltAdapter(ctx context.Context, path string) *BoltAdapter {
 	return ba
 }
 
-func (ba *BoltAdapter) startCleanupTicker() {
+func (ba *BoltStore) startCleanupTicker() {
 	ba.ticker = time.NewTicker(1 * time.Minute)
 
 	go func() {
@@ -72,7 +73,7 @@ func (ba *BoltAdapter) startCleanupTicker() {
 	}()
 }
 
-func (ba *BoltAdapter) cleanupExpired() error {
+func (ba *BoltStore) cleanupExpired() error {
 	tx, err := ba.db.Begin(true)
 	if err != nil {
 		return err
@@ -96,7 +97,7 @@ func (ba *BoltAdapter) cleanupExpired() error {
 	return tx.Commit()
 }
 
-func (ba *BoltAdapter) Get(key string) ([]byte, error) {
+func (ba *BoltStore) Get(key string) ([]byte, error) {
 	var msg expirableMessage
 
 	err := ba.db.View(func(t *bolt.Tx) error {
@@ -121,7 +122,7 @@ func (ba *BoltAdapter) Get(key string) ([]byte, error) {
 	return msg.Value, err
 }
 
-func (ba *BoltAdapter) Set(key string, val []byte, ttl time.Duration) error {
+func (ba *BoltStore) Set(key string, val []byte, ttl time.Duration) error {
 	msg := expirableMessage{
 		Value:     val,
 		ExpiredAt: time.Now().Add(ttl),

@@ -1,4 +1,4 @@
-package cache
+package sqlstore
 
 import (
 	"context"
@@ -8,23 +8,25 @@ import (
 	"log"
 	"sync"
 	"time"
+
+	"github.com/sdvcrx/echo-cache/store"
 )
 
 const (
-	SQLite dbName = iota
+	SQLite DBName = iota
 	PostgreSQL
 	MySQL
 )
 
-type SQLAdapterOption struct {
+type SQLStoreOption struct {
 	DB        *sql.DB
 	Ctx       context.Context
 	TableName string
-	DBName    dbName
+	DBName    DBName
 }
 
-type SQLAdapter struct {
-	SQLAdapterOption
+type SQLStore struct {
+	SQLStoreOption
 	dialect *sqlDialect
 	ticket  *time.Ticker
 
@@ -33,36 +35,38 @@ type SQLAdapter struct {
 	stmtCleanExpired *sql.Stmt
 }
 
-var DefaultSQLAdapterOption = SQLAdapterOption{
+var _ store.Store = (*SQLStore)(nil)
+
+var DefaultSQLStoreOption = SQLStoreOption{
 	Ctx:       context.Background(),
 	TableName: "echo_cache",
 	DBName:    SQLite,
 }
 
-func NewSQLAdapter(option SQLAdapterOption) CacheAdapter {
-	adapter := &SQLAdapter{
-		SQLAdapterOption: DefaultSQLAdapterOption,
+func New(option SQLStoreOption) store.Store {
+	sqlStore := &SQLStore{
+		SQLStoreOption: DefaultSQLStoreOption,
 	}
 
 	if option.Ctx != nil {
-		adapter.Ctx = option.Ctx
+		sqlStore.Ctx = option.Ctx
 	}
 	if option.DB != nil {
-		adapter.DB = option.DB
+		sqlStore.DB = option.DB
 	}
 	if option.TableName != "" {
-		adapter.TableName = option.TableName
+		sqlStore.TableName = option.TableName
 	}
 	if option.DBName != SQLite {
-		adapter.DBName = option.DBName
+		sqlStore.DBName = option.DBName
 	}
 
-	adapter.init()
-	adapter.startCleanExpired()
-	return adapter
+	sqlStore.init()
+	sqlStore.startCleanExpired()
+	return sqlStore
 }
 
-func (sa *SQLAdapter) createTable() {
+func (sa *SQLStore) createTable() {
 	query := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
 cache_key %s PRIMARY KEY,
 value %s,
@@ -75,7 +79,7 @@ expired_at %s
 	}
 }
 
-func (sa *SQLAdapter) prepareGet(ctx context.Context) *sql.Stmt {
+func (sa *SQLStore) prepareGet(ctx context.Context) *sql.Stmt {
 	whereClause := "cache_key = ? AND expired_at > ?"
 	if sa.DBName == PostgreSQL {
 		whereClause = "cache_key = $1 AND expired_at > $2"
@@ -88,7 +92,7 @@ func (sa *SQLAdapter) prepareGet(ctx context.Context) *sql.Stmt {
 	return must(sa.DB.PrepareContext(ctx, query))
 }
 
-func (sa *SQLAdapter) prepareSet(ctx context.Context) *sql.Stmt {
+func (sa *SQLStore) prepareSet(ctx context.Context) *sql.Stmt {
 	placeholder := "?, ?, ?"
 	onConflict := `ON CONFLICT (cache_key) DO UPDATE
 SET value = EXCLUDED.value, expired_at = EXCLUDED.expired_at`
@@ -104,7 +108,7 @@ UPDATE value = VALUES(value), expired_at = VALUES(expired_at)`
 	return must(sa.DB.PrepareContext(ctx, query))
 }
 
-func (sa *SQLAdapter) prepareCleanExpired(ctx context.Context) *sql.Stmt {
+func (sa *SQLStore) prepareCleanExpired(ctx context.Context) *sql.Stmt {
 	placeholder := "?"
 	if sa.DBName == PostgreSQL {
 		placeholder = "$1"
@@ -113,15 +117,15 @@ func (sa *SQLAdapter) prepareCleanExpired(ctx context.Context) *sql.Stmt {
 	return must(sa.DB.PrepareContext(ctx, query))
 }
 
-func (sa *SQLAdapter) init() {
+func (sa *SQLStore) init() {
 	if sa.TableName == "" {
-		log.Fatalln("echo-cache sql_adapter: tableName cannot be empty")
+		log.Fatalln("echo-cache sqlstore: tableName cannot be empty")
 	}
 	if sa.DB == nil {
-		log.Fatalln("echo-cache sql_adapter: db cannot be nil")
+		log.Fatalln("echo-cache sqlstore: db cannot be nil")
 	}
 	if sa.DBName.String() == "invalid" {
-		log.Fatalln("echo-cache sql_adapter: dbName is invalid")
+		log.Fatalln("echo-cache sqlstore: dbName is invalid")
 	}
 	// TODO quote tableName
 
@@ -136,7 +140,7 @@ func (sa *SQLAdapter) init() {
 // The lock of clearning expired cache
 var sqlCleanMutex sync.Mutex
 
-func (sa *SQLAdapter) cleanExpired() error {
+func (sa *SQLStore) cleanExpired() error {
 	sqlCleanMutex.Lock()
 	defer sqlCleanMutex.Unlock()
 
@@ -144,7 +148,7 @@ func (sa *SQLAdapter) cleanExpired() error {
 	return err
 }
 
-func (sa *SQLAdapter) startCleanExpired() {
+func (sa *SQLStore) startCleanExpired() {
 	sa.ticket = time.NewTicker(1 * time.Minute)
 
 	go func() {
@@ -163,7 +167,7 @@ func (sa *SQLAdapter) startCleanExpired() {
 	}()
 }
 
-func (sa *SQLAdapter) Get(key string) ([]byte, error) {
+func (sa *SQLStore) Get(key string) ([]byte, error) {
 	b := []byte{}
 	err := sa.stmtGet.QueryRowContext(sa.Ctx, key, time.Now().UnixMilli()).Scan(&b)
 	if err != nil {
@@ -175,7 +179,7 @@ func (sa *SQLAdapter) Get(key string) ([]byte, error) {
 	return b, nil
 }
 
-func (sa *SQLAdapter) Set(key string, val []byte, ttl time.Duration) error {
+func (sa *SQLStore) Set(key string, val []byte, ttl time.Duration) error {
 	_, err := sa.stmtSet.ExecContext(sa.Ctx, key, val, time.Now().Add(ttl).UnixMilli())
 	return err
 }

@@ -1,4 +1,4 @@
-package cache
+package boltstore
 
 import (
 	"context"
@@ -16,8 +16,8 @@ func TestExpirableMessage(t *testing.T) {
 	assert.True(t, msg.Expired())
 }
 
-func TestBoltAdapter(t *testing.T) {
-	c := NewBoltAdapter(context.Background(), t.TempDir()+"/bolt")
+func TestBoltStore(t *testing.T) {
+	c := New(context.Background(), t.TempDir()+"/bolt")
 	// dont run auto cleanup
 	c.ticker.Stop()
 	key := "cacheKey"

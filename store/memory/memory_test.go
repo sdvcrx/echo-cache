@@ -1,4 +1,4 @@
-package cache
+package memorystore
 
 import (
 	"testing"
@@ -7,8 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestNewMemoryAdapter(t *testing.T) {
-	cache := NewMemoryAdapter(20)
+func TestNewMemoryStore(t *testing.T) {
+	cache := New(20)
 	key := "cacheKey"
 	body := []byte("OK")
 
