@@ -7,7 +7,7 @@ go 1.22
 require (
 	github.com/go-redis/redismock/v9 v9.2.0
 	github.com/redis/go-redis/v9 v9.5.1
-	github.com/sdvcrx/echo-cache/store v0.0.0
+	github.com/sdvcrx/echo-cache/store v0.2.0
 	github.com/stretchr/testify v1.9.0
 )
 

@@ -5,8 +5,8 @@ replace github.com/sdvcrx/echo-cache/store => ../
 go 1.22
 
 require (
-	github.com/phuslu/lru v1.0.15
-	github.com/sdvcrx/echo-cache/store v0.0.0-00010101000000-000000000000
+	github.com/phuslu/lru v1.0.16
+	github.com/sdvcrx/echo-cache/store v0.2.0
 	github.com/stretchr/testify v1.9.0
 )
 
