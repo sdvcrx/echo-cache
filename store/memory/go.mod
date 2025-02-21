@@ -2,12 +2,12 @@ module github.com/sdvcrx/echo-cache/store/memory
 
 replace github.com/sdvcrx/echo-cache/store => ../
 
-go 1.22
+go 1.23
 
 require (
-	github.com/phuslu/lru v1.0.16
-	github.com/sdvcrx/echo-cache/store v0.2.0
-	github.com/stretchr/testify v1.9.0
+	github.com/phuslu/lru v1.0.18
+	github.com/sdvcrx/echo-cache/store v0.3.0
+	github.com/stretchr/testify v1.10.0
 )
 
 require (
