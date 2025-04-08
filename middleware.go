@@ -9,6 +9,7 @@ import (
 	"maps"
 	"net"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/labstack/echo/v4"
@@ -118,6 +119,12 @@ func (w *bodyDumpResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	return http.NewResponseController(w.ResponseWriter).Hijack()
 }
 
+var bufferPool = sync.Pool{
+	New: func() any {
+		return new(bytes.Buffer)
+	},
+}
+
 func CacheWithConfig(config CacheConfig) echo.MiddlewareFunc {
 	if config.Skipper == nil {
 		config.Skipper = DefaultCacheConfig.Skipper
@@ -182,8 +189,13 @@ func CacheWithConfig(config CacheConfig) echo.MiddlewareFunc {
 
 			config.Metrics.CacheMisses()
 
+			resBody := bufferPool.Get().(*bytes.Buffer)
+			defer func() {
+				resBody.Reset()
+				bufferPool.Put(resBody)
+			}()
+
 			// copy from https://github.com/labstack/echo/blob/master/middleware/body_dump.go
-			resBody := new(bytes.Buffer)
 			mw := io.MultiWriter(c.Response().Writer, resBody)
 			writer := &bodyDumpResponseWriter{Writer: mw, ResponseWriter: c.Response().Writer}
 			c.Response().Writer = writer
