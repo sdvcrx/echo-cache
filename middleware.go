@@ -3,6 +3,7 @@ package cache
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"maps"
@@ -107,11 +108,14 @@ func (w *bodyDumpResponseWriter) Write(b []byte) (int, error) {
 }
 
 func (w *bodyDumpResponseWriter) Flush() {
-	w.ResponseWriter.(http.Flusher).Flush()
+	err := http.NewResponseController(w.ResponseWriter).Flush()
+	if err != nil && errors.Is(err, http.ErrNotSupported) {
+		panic(errors.New("response writer flushing is not supported"))
+	}
 }
 
 func (w *bodyDumpResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
-	return w.ResponseWriter.(http.Hijacker).Hijack()
+	return http.NewResponseController(w.ResponseWriter).Hijack()
 }
 
 func CacheWithConfig(config CacheConfig) echo.MiddlewareFunc {
