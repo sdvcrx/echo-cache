@@ -135,7 +135,7 @@ func (suite *middlewareTestSuite) TestSkipper() {
 }
 
 func (suite *middlewareTestSuite) testCanCacheResponse(
-	skipperFunc middleware.Skipper,
+	canCacheRespFunc middleware.Skipper,
 	expected bool,
 	handler echo.HandlerFunc,
 ) {
@@ -144,16 +144,16 @@ func (suite *middlewareTestSuite) testCanCacheResponse(
 	store := createDumpStore("key")
 
 	middleware := CacheWithConfig(CacheConfig{
-		CanCacheResponse: skipperFunc,
+		CanCacheResponse: canCacheRespFunc,
 		Store:            store,
 		CacheKey:         suite.testCacheKey,
 	})
 	err := middleware(handler)(c)
 
 	suite.NoError(err)
-	suite.Equal(expected, skipperFunc(c))
+	suite.Equal(expected, canCacheRespFunc(c))
 
-	if expected {
+	if !expected {
 		store.AssertCalled(suite.T(), "Get", mock.Anything)
 		// should skip cache response
 		store.AssertNotCalled(suite.T(), "Set", mock.Anything, mock.Anything, mock.Anything)
@@ -165,14 +165,14 @@ func (suite *middlewareTestSuite) TestDefaultCanCacheResponse() {
 		handler := func(c echo.Context) error {
 			return c.String(http.StatusOK, "OK")
 		}
-		suite.testCanCacheResponse(DefaultCanCacheResponseSkipper, false, handler)
+		suite.testCanCacheResponse(DefaultCanCacheResponse, true, handler)
 	})
 
 	suite.Run("Skip response error", func() {
 		handler := func(c echo.Context) error {
 			return c.String(http.StatusBadRequest, "params missing")
 		}
-		suite.testCanCacheResponse(DefaultCanCacheResponseSkipper, true, handler)
+		suite.testCanCacheResponse(DefaultCanCacheResponse, false, handler)
 	})
 
 	suite.Run("Skip set-cookie header", func() {
@@ -183,7 +183,7 @@ func (suite *middlewareTestSuite) TestDefaultCanCacheResponse() {
 			})
 			return c.String(http.StatusOK, "OK")
 		}
-		suite.testCanCacheResponse(DefaultCanCacheResponseSkipper, true, handler)
+		suite.testCanCacheResponse(DefaultCanCacheResponse, false, handler)
 	})
 
 	suite.Run("Skip response body too large", func() {
@@ -191,7 +191,7 @@ func (suite *middlewareTestSuite) TestDefaultCanCacheResponse() {
 			data := make([]byte, int(2e7))
 			return c.Blob(http.StatusOK, "application/octet-stream", data)
 		}
-		suite.testCanCacheResponse(DefaultCanCacheResponseSkipper, true, handler)
+		suite.testCanCacheResponse(DefaultCanCacheResponse, false, handler)
 	})
 }
 

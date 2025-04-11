@@ -65,20 +65,20 @@ func DefaultCanCacheResponseSkipper(c echo.Context) bool {
 	if resp.Status != http.StatusOK &&
 		resp.Status != http.StatusMovedPermanently &&
 		resp.Status != http.StatusPermanentRedirect {
-		return true
+		return false
 	}
 
 	// Response must not contain the `set-cookie` header.
 	if resp.Header().Get(echo.HeaderSetCookie) != "" {
-		return true
+		return false
 	}
 
 	// Response must not exceed 10MB in content length.
 	if resp.Size > 10*SizeMB {
-		return true
+		return false
 	}
 
-	return false
+	return true
 }
 
 var (
@@ -86,7 +86,7 @@ var (
 	DefaultCacheDuration = time.Duration(0)
 	DefaultCacheConfig   = CacheConfig{
 		Skipper:          DefaultCacheSkipper,
-		CanCacheResponse: DefaultCanCacheResponseSkipper,
+		CanCacheResponse: DefaultCanCacheResponse,
 		CachePrefix:      DefaultCachePrefix,
 		CacheDuration:    DefaultCacheDuration,
 		CacheKey:         DefaultCacheKey,
@@ -205,12 +205,11 @@ func CacheWithConfig(config CacheConfig) echo.MiddlewareFunc {
 				c.Error(err)
 			}
 
-			// don't cache status code != 200
-			// TODO add canCache
-			// https://vercel.com/docs/concepts/functions/edge-functions/edge-caching#what-is-cached
-			if config.CanCacheResponse(c) {
+			// check if can cache response
+			if config.CanCacheResponse(c) == false {
 				return nil
 			}
+
 			// cache it here
 			resp := NewResponse(writer.statusCode, writer.Header(), resBody.Bytes())
 			b, err := config.Encoder.Marshal(resp)
