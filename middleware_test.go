@@ -186,6 +186,14 @@ func (suite *middlewareTestSuite) TestDefaultCanCacheResponse() {
 		suite.testCanCacheResponse(DefaultCanCacheResponse, false, handler)
 	})
 
+	suite.Run("Skip cache-control header", func() {
+		handler := func(c echo.Context) error {
+			c.Response().Header().Set(echo.HeaderCacheControl, "private")
+			return c.String(http.StatusOK, "ok")
+		}
+		suite.testCanCacheResponse(DefaultCanCacheResponse, false, handler)
+	})
+
 	suite.Run("Skip response body too large", func() {
 		handler := func(c echo.Context) error {
 			data := make([]byte, int(2e7))

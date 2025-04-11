@@ -9,6 +9,7 @@ import (
 	"maps"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -37,6 +38,7 @@ func DefaultCacheKey(prefix string, req *http.Request) string {
 
 // Cache default skipper only cache GET/HEAD method
 // and headers not contain `Range`
+// Based on https://vercel.com/docs/edge-cache#cacheable-response-criteria
 func DefaultCacheSkipper(c echo.Context) bool {
 	method := c.Request().Method
 	// Request must use GET or HEAD method
@@ -55,10 +57,30 @@ const (
 	SizeMB int64 = 1024 * SizeKB
 )
 
-// Default canCacheResponse skipper will skip response cache if:
-// - response status code not in (200, 301, 308)
-// - response headers not contains `set-cookie`
-func DefaultCanCacheResponseSkipper(c echo.Context) bool {
+// Retrurn true if cacheControl contain the `private`, `no-cache` or `no-store` directives.
+func CacheControlNoCache(cacheControl string) bool {
+	if cacheControl == "" {
+		return false
+	}
+
+	iter := strings.SplitSeq(cacheControl, ",")
+	for directive := range iter {
+		dir := strings.TrimSpace(directive)
+		if dir == "private" || dir == "no-cache" || dir == "no-store" {
+			return true
+		}
+	}
+
+	return false
+}
+
+// Default canCacheResponse will skip response cache if:
+// - Response status code not in (200, 301, 308)
+// - Response headers not contains `set-cookie`
+// - Response does not exceed 10MB in content length
+// - Response does not contain the `private`, `no-cache` or `no-store` directives in the Cache-Control header.
+// Based on https://vercel.com/docs/edge-cache#cacheable-response-criteria
+func DefaultCanCacheResponse(c echo.Context) bool {
 	resp := c.Response()
 
 	// Response status code must be 200, 301, or 308
@@ -73,7 +95,13 @@ func DefaultCanCacheResponseSkipper(c echo.Context) bool {
 		return false
 	}
 
-	// Response must not exceed 10MB in content length.
+	// Response does not contain the `private`, `no-cache` or `no-store` directives in the Cache-Control header.
+	respCacheControl := resp.Header().Get(echo.HeaderCacheControl)
+	if CacheControlNoCache(respCacheControl) {
+		return false
+	}
+
+	// Response must not exceed `10MB` in content length.
 	if resp.Size > 10*SizeMB {
 		return false
 	}
