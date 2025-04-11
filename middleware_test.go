@@ -266,7 +266,7 @@ func (suite *middlewareTestSuite) TestCacheHeader() {
 		Encoder: suite.enc,
 	})
 
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		err := middleware(handler)(c)
 		suite.NoError(err)
 

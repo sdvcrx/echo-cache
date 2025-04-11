@@ -53,7 +53,7 @@ func BenchmarkEncoderMarshal(b *testing.B) {
 			b.ResetTimer()
 			b.SetBytes(int64(len(data)))
 
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				_, err := encoder.Marshal(response)
 				if err != nil {
 					b.Fatal(err)
@@ -86,7 +86,7 @@ func BenchmarkEncoderUnmarshal(b *testing.B) {
 			b.ResetTimer()
 			b.SetBytes(int64(len(data)))
 
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				err := encoder.Unmarshal(data, response)
 				if err != nil {
 					b.Fatal(err)
