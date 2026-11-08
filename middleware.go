@@ -13,8 +13,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
+	"github.com/labstack/echo/v5"
+	"github.com/labstack/echo/v5/middleware"
 	"github.com/sdvcrx/echo-cache/store"
 	memorystore "github.com/sdvcrx/echo-cache/store/memory"
 )
@@ -39,7 +39,7 @@ func DefaultCacheKey(prefix string, req *http.Request) string {
 // Cache default skipper only cache GET/HEAD method
 // and headers not contain `Range`
 // Based on https://vercel.com/docs/edge-cache#cacheable-response-criteria
-func DefaultCacheSkipper(c echo.Context) bool {
+func DefaultCacheSkipper(c *echo.Context) bool {
 	method := c.Request().Method
 	// Request must use GET or HEAD method
 	if method != http.MethodGet && method != http.MethodHead {
@@ -80,8 +80,11 @@ func CacheControlNoCache(cacheControl string) bool {
 // - Response does not exceed 10MB in content length
 // - Response does not contain the `private`, `no-cache` or `no-store` directives in the Cache-Control header.
 // Based on https://vercel.com/docs/edge-cache#cacheable-response-criteria
-func DefaultCanCacheResponse(c echo.Context) bool {
-	resp := c.Response()
+func DefaultCanCacheResponse(c *echo.Context) bool {
+	resp, err := echo.UnwrapResponse(c.Response())
+	if err != nil {
+		return false
+	}
 
 	// Response status code must be 200, 301, or 308
 	if resp.Status != http.StatusOK &&
@@ -124,11 +127,9 @@ var (
 type bodyDumpResponseWriter struct {
 	io.Writer
 	http.ResponseWriter
-	statusCode int
 }
 
 func (w *bodyDumpResponseWriter) WriteHeader(code int) {
-	w.statusCode = code
 	w.ResponseWriter.WriteHeader(code)
 }
 
@@ -147,13 +148,27 @@ func (w *bodyDumpResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	return http.NewResponseController(w.ResponseWriter).Hijack()
 }
 
+func (w *bodyDumpResponseWriter) Unwrap() http.ResponseWriter {
+	return w.ResponseWriter
+}
+
 var bufferPool = sync.Pool{
 	New: func() any {
 		return new(bytes.Buffer)
 	},
 }
 
+// CacheWithConfig returns cache middleware with the given configuration.
 func CacheWithConfig(config CacheConfig) echo.MiddlewareFunc {
+	mw, err := config.ToMiddleware()
+	if err != nil {
+		panic(err)
+	}
+	return mw
+}
+
+// ToMiddleware converts CacheConfig to middleware or returns an error for invalid configuration.
+func (config CacheConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 	if config.Skipper == nil {
 		config.Skipper = DefaultCacheConfig.Skipper
 	}
@@ -180,7 +195,7 @@ func CacheWithConfig(config CacheConfig) echo.MiddlewareFunc {
 	}
 
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			if config.Skipper(c) {
 				config.Metrics.CacheMisses()
 				return next(c)
@@ -195,12 +210,12 @@ func CacheWithConfig(config CacheConfig) echo.MiddlewareFunc {
 
 			if err != nil {
 				config.Metrics.CacheError()
-				c.Logger().Errorf("[echo-cache] Failed to get cache, err=%s", err)
+				c.Logger().Error("echo-cache: failed to get cache", "error", err)
 			} else if cached != nil {
 				var cachedResponse Response
 				if err := config.Encoder.Unmarshal(cached, &cachedResponse); err != nil {
 					config.Metrics.CacheError()
-					c.Logger().Errorf("[echo-cache] Failed to unmarshal response, err=%s", err)
+					c.Logger().Error("echo-cache: failed to unmarshal response", "error", err)
 					return nil
 				}
 
@@ -208,7 +223,7 @@ func CacheWithConfig(config CacheConfig) echo.MiddlewareFunc {
 				c.Response().WriteHeader(cachedResponse.StatusCode)
 				_, err = c.Response().Write(cachedResponse.Body)
 				if err != nil {
-					c.Logger().Errorf("[echo-cache] Failed to write response, err=%s", err)
+					c.Logger().Error("echo-cache: failed to write response", "error", err)
 				}
 				config.Metrics.CacheHits()
 				config.Metrics.CacheLatency(float64(time.Since(start).Seconds()))
@@ -224,34 +239,40 @@ func CacheWithConfig(config CacheConfig) echo.MiddlewareFunc {
 			}()
 
 			// copy from https://github.com/labstack/echo/blob/master/middleware/body_dump.go
-			mw := io.MultiWriter(c.Response().Writer, resBody)
-			writer := &bodyDumpResponseWriter{Writer: mw, ResponseWriter: c.Response().Writer}
-			c.Response().Writer = writer
+			mw := io.MultiWriter(c.Response(), resBody)
+			writer := &bodyDumpResponseWriter{Writer: mw, ResponseWriter: c.Response()}
+			c.SetResponse(writer)
 
 			// start
 			if err := next(c); err != nil {
-				c.Error(err)
+				return err
 			}
 
 			// check if can cache response
-			if config.CanCacheResponse(c) == false {
+			if !config.CanCacheResponse(c) {
 				return nil
 			}
 
 			// cache it here
-			resp := NewResponse(writer.statusCode, writer.Header(), resBody.Bytes())
-			b, err := config.Encoder.Marshal(resp)
+			resp, err := echo.UnwrapResponse(c.Response())
 			if err != nil {
-				c.Logger().Errorf("[echo-cache] Failed to marshal response, err=%s", err)
+				config.Metrics.CacheError()
+				c.Logger().Error("echo-cache: failed to unwrap response", "error", err)
+				return nil
+			}
+			cachedResponse := NewResponse(resp.Status, writer.Header(), resBody.Bytes())
+			b, err := config.Encoder.Marshal(cachedResponse)
+			if err != nil {
+				c.Logger().Error("echo-cache: failed to marshal response", "error", err)
 				return nil
 			}
 			config.Metrics.CacheSize(float64(len(b)))
 			if err = config.Store.Set(key, b, config.CacheDuration); err != nil {
-				c.Logger().Errorf("[echo-cache] Failed to save cache, key=%s err=%s", key, err)
+				c.Logger().Error("echo-cache: failed to save cache", "key", key, "error", err)
 			}
 			return nil
 		}
-	}
+	}, nil
 }
 
 func Cache() echo.MiddlewareFunc {

@@ -11,6 +11,10 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    strategy:
+      matrix:
+        go-version: ['1.26.x', 'stable']
+
     services:
       # https://docs.github.com/cn/actions/using-containerized-services/creating-redis-service-containers#running-jobs-directly-on-the-runner-machine
       redis:
@@ -52,13 +56,17 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v7
       with:
-        go-version: 'stable'
+        go-version: ${{ matrix.go-version }}
 
     - name: Run staticcheck lint
       uses: dominikh/staticcheck-action@v1.4.1
       with:
-        version: "2025.1"
+        version: "latest"
         install-go: false
 
     - name: Test
-      run: go test -v ./...
+      run: |
+        go test -v ./...
+        for module in store store/bolt store/memory store/redis store/sql store/sql/test; do
+          (cd "$module" && go test -v ./...)
+        done

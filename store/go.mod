@@ -1,3 +1,3 @@
 module github.com/sdvcrx/echo-cache/store
 
-go 1.23
+go 1.26.0

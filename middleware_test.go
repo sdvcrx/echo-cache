@@ -9,13 +9,13 @@ import (
 	"net/http"
 	"net/http/httptest"
 
-	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
+	"github.com/labstack/echo/v5"
+	"github.com/labstack/echo/v5/middleware"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 )
 
-func createEchoContext(e *echo.Echo, url string) (echo.Context, *httptest.ResponseRecorder) {
+func createEchoContext(e *echo.Echo, url string) (*echo.Context, *httptest.ResponseRecorder) {
 	req := httptest.NewRequest(http.MethodGet, url, nil)
 	rec := httptest.NewRecorder()
 	return e.NewContext(req, rec), rec
@@ -71,7 +71,7 @@ type middlewareTestSuite struct {
 func (suite *middlewareTestSuite) SetupTest() {
 	suite.e = echo.New()
 	suite.enc = &JSONEncoder{}
-	suite.handler = func(c echo.Context) error {
+	suite.handler = func(c *echo.Context) error {
 		c.Response().Header().Set("X-TEST", "OK")
 		return c.String(http.StatusOK, "OK")
 	}
@@ -83,7 +83,7 @@ func (suite *middlewareTestSuite) testCacheKey(prefix string, req *http.Request)
 
 func (suite *middlewareTestSuite) testSkipper(
 	skipperFunc middleware.Skipper,
-	c echo.Context,
+	c *echo.Context,
 	expected bool,
 ) {
 	suite.Equal(expected, skipperFunc(c))
@@ -126,7 +126,7 @@ func (suite *middlewareTestSuite) TestDefaultSkipper() {
 
 func (suite *middlewareTestSuite) TestSkipper() {
 	path := "/cache"
-	skipper := func(c echo.Context) bool {
+	skipper := func(c *echo.Context) bool {
 		return c.Request().URL.Path != path
 	}
 	c, _ := createEchoContext(suite.e, "/dont-cache-me")
@@ -162,21 +162,21 @@ func (suite *middlewareTestSuite) testCanCacheResponse(
 
 func (suite *middlewareTestSuite) TestDefaultCanCacheResponse() {
 	suite.Run("Can cache response", func() {
-		handler := func(c echo.Context) error {
+		handler := func(c *echo.Context) error {
 			return c.String(http.StatusOK, "OK")
 		}
 		suite.testCanCacheResponse(DefaultCanCacheResponse, true, handler)
 	})
 
 	suite.Run("Skip response error", func() {
-		handler := func(c echo.Context) error {
+		handler := func(c *echo.Context) error {
 			return c.String(http.StatusBadRequest, "params missing")
 		}
 		suite.testCanCacheResponse(DefaultCanCacheResponse, false, handler)
 	})
 
 	suite.Run("Skip set-cookie header", func() {
-		handler := func(c echo.Context) error {
+		handler := func(c *echo.Context) error {
 			c.SetCookie(&http.Cookie{
 				Name:  "uid",
 				Value: "1",
@@ -187,7 +187,7 @@ func (suite *middlewareTestSuite) TestDefaultCanCacheResponse() {
 	})
 
 	suite.Run("Skip cache-control header", func() {
-		handler := func(c echo.Context) error {
+		handler := func(c *echo.Context) error {
 			c.Response().Header().Set(echo.HeaderCacheControl, "private")
 			return c.String(http.StatusOK, "ok")
 		}
@@ -195,7 +195,7 @@ func (suite *middlewareTestSuite) TestDefaultCanCacheResponse() {
 	})
 
 	suite.Run("Skip response body too large", func() {
-		handler := func(c echo.Context) error {
+		handler := func(c *echo.Context) error {
 			data := make([]byte, int(2e7))
 			return c.Blob(http.StatusOK, "application/octet-stream", data)
 		}
@@ -256,13 +256,11 @@ func (suite *middlewareTestSuite) TestCacheHit() {
 
 func (suite *middlewareTestSuite) TestCacheHeader() {
 	url := "/"
-	c, rec := createEchoContext(suite.e, url)
-
 	store := &memoryStore{}
 
 	headerValues := []string{"1", "2", "3"}
 
-	handler := func(c echo.Context) error {
+	handler := func(c *echo.Context) error {
 		for _, v := range headerValues {
 			c.Response().Header().Add("X-TEST", v)
 		}
@@ -275,12 +273,93 @@ func (suite *middlewareTestSuite) TestCacheHeader() {
 	})
 
 	for range 3 {
+		c, rec := createEchoContext(suite.e, url)
 		err := middleware(handler)(c)
 		suite.NoError(err)
 
 		suite.Equal(200, rec.Code)
 		suite.Equal(headerValues, rec.Header().Values("X-TEST"))
 	}
+}
+
+func (suite *middlewareTestSuite) TestImplicitOKStatusIsCached() {
+	store := &memoryStore{}
+	middleware := CacheWithConfig(CacheConfig{
+		Store:   store,
+		Encoder: suite.enc,
+	})
+
+	c, rec := createEchoContext(suite.e, "/implicit-status")
+	err := middleware(func(c *echo.Context) error {
+		_, err := c.Response().Write([]byte("OK"))
+		return err
+	})(c)
+	suite.NoError(err)
+	suite.Equal(http.StatusOK, rec.Code)
+
+	handlerCalled := false
+	c, rec = createEchoContext(suite.e, "/implicit-status")
+	err = middleware(func(c *echo.Context) error {
+		handlerCalled = true
+		return nil
+	})(c)
+	suite.NoError(err)
+	suite.False(handlerCalled)
+	suite.Equal(http.StatusOK, rec.Code)
+	suite.Equal("OK", rec.Body.String())
+}
+
+func (suite *middlewareTestSuite) TestResponseWriterCanBeUnwrapped() {
+	store := createDumpStore("key")
+	unwrapped := false
+	middleware := CacheWithConfig(CacheConfig{
+		Store:    store,
+		CacheKey: suite.testCacheKey,
+		CanCacheResponse: func(c *echo.Context) bool {
+			_, err := echo.UnwrapResponse(c.Response())
+			unwrapped = err == nil
+			return false
+		},
+	})
+
+	c, _ := createEchoContext(suite.e, "/unwrap")
+	err := middleware(suite.handler)(c)
+	suite.NoError(err)
+	suite.True(unwrapped)
+	store.AssertNotCalled(suite.T(), "Set", mock.Anything, mock.Anything, mock.Anything)
+}
+
+func (suite *middlewareTestSuite) TestHandlerErrorIsReturnedWithoutCaching() {
+	store := createDumpStore("key")
+	expectedErr := errors.New("handler failed")
+	middleware := CacheWithConfig(CacheConfig{
+		Store:    store,
+		CacheKey: suite.testCacheKey,
+	})
+
+	c, _ := createEchoContext(suite.e, "/handler-error")
+	err := middleware(func(c *echo.Context) error {
+		return expectedErr
+	})(c)
+	suite.ErrorIs(err, expectedErr)
+	store.AssertNotCalled(suite.T(), "Set", mock.Anything, mock.Anything, mock.Anything)
+}
+
+func (suite *middlewareTestSuite) TestUnwrapFailureSkipsCaching() {
+	store := createDumpStore("key")
+	middleware := CacheWithConfig(CacheConfig{
+		Store:            store,
+		CacheKey:         suite.testCacheKey,
+		CanCacheResponse: func(c *echo.Context) bool { return true },
+	})
+
+	c, _ := createEchoContext(suite.e, "/unwrap-error")
+	err := middleware(func(c *echo.Context) error {
+		c.SetResponse(httptest.NewRecorder())
+		return c.String(http.StatusOK, "OK")
+	})(c)
+	suite.NoError(err)
+	store.AssertNotCalled(suite.T(), "Set", mock.Anything, mock.Anything, mock.Anything)
 }
 
 func (suite *middlewareTestSuite) TestSaveHit() {
@@ -333,4 +412,30 @@ func (suite *middlewareTestSuite) TestGetCacheError() {
 
 func TestCacheMiddleware(t *testing.T) {
 	suite.Run(t, new(middlewareTestSuite))
+}
+
+func TestCacheConfigToMiddleware(t *testing.T) {
+	mw, err := (CacheConfig{}).ToMiddleware()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	e := echo.New()
+	calls := 0
+	handler := mw(func(c *echo.Context) error {
+		calls++
+		return c.String(http.StatusOK, "cached response")
+	})
+	for range 2 {
+		c, rec := createEchoContext(e, "/to-middleware")
+		if err := handler(c); err != nil {
+			t.Fatal(err)
+		}
+		if rec.Code != http.StatusOK || rec.Body.String() != "cached response" {
+			t.Fatalf("unexpected response: status=%d body=%q", rec.Code, rec.Body.String())
+		}
+	}
+	if calls != 1 {
+		t.Fatalf("handler called %d times, want 1", calls)
+	}
 }
