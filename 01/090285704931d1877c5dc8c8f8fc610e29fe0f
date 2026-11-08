@@ -1,0 +1,38 @@
+store/sql/go.mod
+  s_a683bcc3eda456::t_296f0c5f3aa375 5
+store/redis/go.mod
+  s_a683bcc3eda456::t_212410876c553c 5,11,18,20-21
+store/sql/test/go.mod
+  s_a683bcc3eda456::t_fe58826f6a6c1e 7,13,28-31
+go.work
+  s_a683bcc3eda456::t_5a7f9468fff570 1,3
+store/go.mod
+  s_a683bcc3eda456::t_1e763a8ace7bfc 3
+README.md
+  s_a683bcc3eda456::t_fe6e3cdd3aba10 8-12,52,54-65,67-72
+store/bolt/go.mod
+  s_a683bcc3eda456::t_a1eca01e5d0364 5,9,18-19
+store/memory/go.mod
+  s_a683bcc3eda456::t_34dc6768c9d618 5,10
+middleware.go
+  s_a683bcc3eda456::t_fca7899df0e425 16-17,42,83-87,151-154,161,163-171,198,213,218,226,242-244,248,252,257-264,266,271,275
+middleware_test.go
+  s_a683bcc3eda456::t_c376cfdab377a1 12-13,18,74,86,129,165,172,179,190,198,263,276,283-362,415-440
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "01090285704931d1877c5dc8c8f8fc610e29fe0f",
+  "prompts": {},
+  "logical_commit_id": "ea904c1bc3275e21a76ad52a225a5aa840ac75e6",
+  "sessions": {
+    "s_a683bcc3eda456": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1b90e-beb4-7383-8a1e-bc916092470d",
+        "model": "unknown"
+      },
+      "human_author": "sdvcrx <memory.silentvoyage@gmail.com>"
+    }
+  }
+}
