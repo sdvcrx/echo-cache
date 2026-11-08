@@ -1,0 +1,25 @@
+go.mod
+  h_7f76dd559a5555 11-12
+store/bolt/go.mod
+  h_7f76dd559a5555 8
+store/memory/go.mod
+  h_7f76dd559a5555 9
+store/redis/go.mod
+  h_7f76dd559a5555 10
+store/sql/go.mod
+  h_7f76dd559a5555 7
+store/sql/test/go.mod
+  h_7f76dd559a5555 12,26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "931b032cbe5c61b20765e334636933f0d5d359cc",
+  "prompts": {},
+  "logical_commit_id": "931b032cbe5c61b20765e334636933f0d5d359cc",
+  "humans": {
+    "h_7f76dd559a5555": {
+      "author": "sdvcrx <memory.silentvoyage@gmail.com>"
+    }
+  }
+}
