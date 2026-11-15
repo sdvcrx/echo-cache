@@ -1,0 +1,17 @@
+middleware.go
+  h_7f76dd559a5555 235,238-239
+middleware_test.go
+  h_7f76dd559a5555 4,441-491
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "41c7dec2619aa359f69670bf0c33ae2877db70f7",
+  "prompts": {},
+  "logical_commit_id": "41c7dec2619aa359f69670bf0c33ae2877db70f7",
+  "humans": {
+    "h_7f76dd559a5555": {
+      "author": "sdvcrx <memory.silentvoyage@gmail.com>"
+    }
+  }
+}
