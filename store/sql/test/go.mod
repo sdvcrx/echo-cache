@@ -9,7 +9,7 @@ go 1.26.0
 require (
 	github.com/go-sql-driver/mysql v1.9.0
 	github.com/lib/pq v1.10.9
-	github.com/sdvcrx/echo-cache/store/sql v1.0.1
+	github.com/sdvcrx/echo-cache/store/sql v1.0.2
 	github.com/stretchr/testify v1.11.1
 	modernc.org/sqlite v1.35.0
 )
@@ -23,7 +23,7 @@ require (
 	github.com/ncruces/go-strftime v0.1.9 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
-	github.com/sdvcrx/echo-cache/store v1.0.1 // indirect
+	github.com/sdvcrx/echo-cache/store v1.0.2 // indirect
 	golang.org/x/exp v0.0.0-20250218142911-aa4b98e5adaa // indirect
 	golang.org/x/mod v0.37.0 // indirect
 	golang.org/x/sync v0.22.0 // indirect

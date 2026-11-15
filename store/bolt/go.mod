@@ -5,7 +5,7 @@ replace github.com/sdvcrx/echo-cache/store => ../
 go 1.26.0
 
 require (
-	github.com/sdvcrx/echo-cache/store v1.0.1
+	github.com/sdvcrx/echo-cache/store v1.0.2
 	github.com/stretchr/testify v1.11.1
 	github.com/vmihailenco/msgpack/v5 v5.4.1
 	go.etcd.io/bbolt v1.4.0
