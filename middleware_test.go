@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"encoding/json"
 	"errors"
 	"sync"
 	"testing"
@@ -437,5 +438,56 @@ func TestCacheConfigToMiddleware(t *testing.T) {
 	}
 	if calls != 1 {
 		t.Fatalf("handler called %d times, want 1", calls)
+	}
+}
+
+// Exercise Echo's error handler after cache middleware has returned its buffer.
+func TestHandlerErrorDoesNotPolluteCachedResponse(t *testing.T) {
+	e := echo.New()
+	store := &memoryStore{}
+	e.HTTPErrorHandler = func(c *echo.Context, err error) {
+		if err := c.JSON(http.StatusInternalServerError, map[string]any{"code": 500, "error": err.Error()}); err != nil {
+			t.Error(err)
+		}
+	}
+	calls := 0
+	e.GET("/list", func(c *echo.Context) error {
+		calls++
+		if calls == 1 {
+			return errors.New("upstream returned 403")
+		}
+		return c.JSON(http.StatusOK, map[string]any{"articles": []string{"ok"}})
+	})
+	// Check writer ownership on unwind, independently of sync.Pool reuse.
+	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c *echo.Context) error {
+			original := c.Response()
+			err := next(c)
+			if c.Response() != original {
+				t.Error("cache middleware did not restore the original response writer")
+			}
+			return err
+		}
+	})
+	e.Use(CacheWithConfig(CacheConfig{Store: store}))
+	for i := 0; i < 3; i++ {
+		rec := httptest.NewRecorder()
+		e.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/list", nil))
+		expectedStatus := http.StatusOK
+		if i == 0 {
+			expectedStatus = http.StatusInternalServerError
+		}
+		if rec.Code != expectedStatus {
+			t.Errorf("request %d: status=%d, want %d", i+1, rec.Code, expectedStatus)
+		}
+		if !json.Valid(rec.Body.Bytes()) {
+			t.Errorf("request %d: invalid JSON: %q", i+1, rec.Body.String())
+		}
+		if i > 0 && rec.Body.String() != "{\"articles\":[\"ok\"]}\n" {
+			t.Errorf("request %d: unexpected body %q", i+1, rec.Body.String())
+		}
+	}
+	if calls != 2 {
+		t.Errorf("handler called %d times, want 2", calls)
 	}
 }

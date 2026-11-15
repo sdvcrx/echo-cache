@@ -232,8 +232,11 @@ func (config CacheConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 
 			config.Metrics.CacheMisses()
 
+			originalResponse := c.Response()
 			resBody := bufferPool.Get().(*bytes.Buffer)
 			defer func() {
+				// Outer middleware and Echo's error handler must not write to a released buffer.
+				c.SetResponse(originalResponse)
 				resBody.Reset()
 				bufferPool.Put(resBody)
 			}()
